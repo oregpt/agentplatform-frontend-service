@@ -1,0 +1,527 @@
+<template>
+  <div class="files-container">
+    <div class="header">
+      <div class="title-section">
+        <h1>Files</h1>
+        <span v-if="agent" class="agent-name">for {{ agent.name }}</span>
+      </div>
+      <div class="actions">
+        <button @click="showUploadModal = true" class="upload-btn">Upload Files</button>
+      </div>
+    </div>
+
+    <div v-if="loading" class="loading">Loading files...</div>
+    
+    <div v-else-if="files.length === 0" class="empty-state">
+      <p>No files found for this agent. Upload markdown files to get started.</p>
+      <div class="upload-zone" @click="showUploadModal = true">
+        <div class="upload-icon">
+          <i class="mdi mdi-upload"></i>
+        </div>
+        <p>Click to upload .md files</p>
+      </div>
+    </div>
+    
+    <div v-else class="files-list">
+      <div v-for="file in files" :key="file.id" class="file-card">
+        <div class="file-info">
+          <h3>{{ file.name }}</h3>
+          <p class="file-meta">
+            {{ formatFileSize(file.sizeBytes) }} • 
+            {{ formatDate(file.createdAt) }}
+          </p>
+        </div>
+        <div class="file-actions">
+          <button @click="downloadFile(file)" class="download-btn" title="Download">
+            <i class="mdi mdi-download"></i>
+          </button>
+          <button @click="confirmDelete(file)" class="delete-btn" title="Delete">
+            <i class="mdi mdi-delete"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div v-if="showUploadModal" class="modal-backdrop">
+      <div class="modal">
+        <h2>Upload Files</h2>
+        <p>Select markdown (.md) files to upload to this agent.</p>
+        
+        <div 
+          class="dropzone"
+          @dragover.prevent="isDragging = true"
+          @dragleave.prevent="isDragging = false"
+          @drop.prevent="onFileDrop"
+          :class="{ 'active': isDragging }"
+        >
+          <div v-if="!selectedFiles.length">
+            <i class="mdi mdi-upload"></i>
+            <p>Drag and drop files here or click to browse</p>
+            <input 
+              type="file" 
+              ref="fileInput"
+              @change="onFileSelect"
+              accept=".md"
+              multiple
+              class="file-input"
+            />
+          </div>
+          <div v-else class="selected-files">
+            <div v-for="(file, index) in selectedFiles" :key="index" class="selected-file">
+              <span>{{ file.name }}</span>
+              <span>{{ formatFileSize(file.size) }}</span>
+              <button @click.prevent="removeFile(index)" class="remove-file">
+                <i class="mdi mdi-close"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="upload-progress" v-if="uploading">
+          <div class="progress-bar">
+            <div class="progress" :style="{ width: `${uploadProgress}%` }"></div>
+          </div>
+          <span>{{ uploadProgress }}%</span>
+        </div>
+        
+        <div class="modal-actions">
+          <button type="button" @click="closeUploadModal" class="cancel-btn" :disabled="uploading">Cancel</button>
+          <button 
+            @click="uploadFiles" 
+            class="upload-btn" 
+            :disabled="selectedFiles.length === 0 || uploading"
+          >
+            {{ uploading ? 'Uploading...' : 'Upload' }}
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Delete Confirmation Modal -->
+    <div v-if="showDeleteModal" class="modal-backdrop">
+      <div class="modal">
+        <h2>Delete File</h2>
+        <p>Are you sure you want to delete <strong>{{ selectedFile.name }}</strong>?</p>
+        <p class="warning">This action cannot be undone.</p>
+        
+        <div class="modal-actions">
+          <button @click="showDeleteModal = false" class="cancel-btn">Cancel</button>
+          <button @click="deleteFile" class="delete-btn">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { filesApi, agentsApi } from '../services/api'
+
+const route = useRoute()
+const agentId = ref('')
+const agent = ref(null)
+const files = ref([])
+const loading = ref(true)
+const showUploadModal = ref(false)
+const showDeleteModal = ref(false)
+const selectedFile = ref({})
+const selectedFiles = ref([])
+const isDragging = ref(false)
+const uploading = ref(false)
+const uploadProgress = ref(0)
+const fileInput = ref(null)
+
+onMounted(async () => {
+  agentId.value = route.params.agentId
+  if (agentId.value) {
+    await Promise.all([
+      fetchAgent(),
+      fetchFiles()
+    ])
+  }
+})
+
+async function fetchAgent() {
+  try {
+    const response = await agentsApi.getById(agentId.value)
+    agent.value = response.data
+  } catch (error) {
+    console.error('Error fetching agent:', error)
+  }
+}
+
+async function fetchFiles() {
+  loading.value = true
+  try {
+    const response = await filesApi.getAll(agentId.value)
+    files.value = response.data
+  } catch (error) {
+    console.error('Error fetching files:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes'
+  
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+function formatDate(dateString) {
+  const date = new Date(dateString)
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
+}
+
+function onFileDrop(event) {
+  isDragging.value = false
+  const droppedFiles = Array.from(event.dataTransfer.files)
+  
+  // Filter for only .md files
+  const markdownFiles = droppedFiles.filter(file => file.name.toLowerCase().endsWith('.md'))
+  
+  if (markdownFiles.length === 0) {
+    alert('Only markdown (.md) files are allowed')
+    return
+  }
+  
+  selectedFiles.value = [...selectedFiles.value, ...markdownFiles]
+}
+
+function onFileSelect(event) {
+  const files = Array.from(event.target.files)
+  selectedFiles.value = [...selectedFiles.value, ...files]
+}
+
+function removeFile(index) {
+  selectedFiles.value.splice(index, 1)
+}
+
+async function uploadFiles() {
+  if (selectedFiles.value.length === 0) return
+  
+  uploading.value = true
+  uploadProgress.value = 0
+  
+  try {
+    // For each file, create a FormData and upload
+    for (let i = 0; i < selectedFiles.value.length; i++) {
+      const file = selectedFiles.value[i]
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      await filesApi.upload(agentId.value, formData)
+      
+      // Update progress
+      uploadProgress.value = Math.round(((i + 1) / selectedFiles.value.length) * 100)
+    }
+    
+    // Refresh files list
+    await fetchFiles()
+    closeUploadModal()
+  } catch (error) {
+    console.error('Error uploading files:', error)
+    alert('Error uploading files: ' + error.message)
+  } finally {
+    uploading.value = false
+  }
+}
+
+function closeUploadModal() {
+  showUploadModal.value = false
+  selectedFiles.value = []
+  isDragging.value = false
+  uploading.value = false
+  uploadProgress.value = 0
+}
+
+function confirmDelete(file) {
+  selectedFile.value = file
+  showDeleteModal.value = true
+}
+
+async function downloadFile(file) {
+  try {
+    const response = await filesApi.download(file.id)
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', file.name)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  } catch (error) {
+    console.error('Error downloading file:', error)
+    alert('Error downloading file: ' + error.message)
+  }
+}
+
+async function deleteFile() {
+  try {
+    await filesApi.delete(selectedFile.value.id)
+    await fetchFiles()
+    showDeleteModal.value = false
+  } catch (error) {
+    console.error('Error deleting file:', error)
+    alert('Error deleting file: ' + error.message)
+  }
+}
+</script>
+
+<style scoped>
+.files-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.title-section {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.agent-name {
+  color: #7f8c8d;
+  font-size: 1.2rem;
+}
+
+.upload-btn {
+  background-color: #2c3e50;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.upload-btn:hover {
+  background-color: #1a2530;
+}
+
+.loading, .empty-state {
+  text-align: center;
+  padding: 40px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.empty-state p {
+  margin-bottom: 20px;
+  color: #7f8c8d;
+}
+
+.upload-zone {
+  border: 2px dashed #ddd;
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.upload-zone:hover {
+  border-color: #3498db;
+  background-color: rgba(52, 152, 219, 0.05);
+}
+
+.upload-icon {
+  font-size: 3rem;
+  color: #7f8c8d;
+  margin-bottom: 10px;
+}
+
+.files-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.file-card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.file-info h3 {
+  margin: 0 0 5px 0;
+  color: #2c3e50;
+  font-size: 1.1rem;
+}
+
+.file-meta {
+  color: #7f8c8d;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.file-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.download-btn, .delete-btn {
+  background-color: transparent;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+.download-btn {
+  color: #3498db;
+}
+
+.download-btn:hover {
+  background-color: rgba(52, 152, 219, 0.1);
+}
+
+.delete-btn {
+  color: #e74c3c;
+}
+
+.delete-btn:hover {
+  background-color: rgba(231, 76, 60, 0.1);
+}
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.modal {
+  background-color: white;
+  border-radius: 8px;
+  padding: 30px;
+  width: 90%;
+  max-width: 600px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal h2 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #2c3e50;
+}
+
+.dropzone {
+  border: 2px dashed #ddd;
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  margin: 20px 0;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.dropzone.active {
+  border-color: #3498db;
+  background-color: rgba(52, 152, 219, 0.05);
+}
+
+.dropzone i {
+  font-size: 3rem;
+  color: #7f8c8d;
+  margin-bottom: 10px;
+}
+
+.file-input {
+  display: none;
+}
+
+.selected-files {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.selected-file {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.remove-file {
+  background-color: transparent;
+  border: none;
+  color: #e74c3c;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.upload-progress {
+  margin: 20px 0;
+}
+
+.progress-bar {
+  height: 10px;
+  background-color: #ecf0f1;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.progress {
+  height: 100%;
+  background-color: #3498db;
+  transition: width 0.3s;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.cancel-btn {
+  background-color: #95a5a6;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.warning {
+  color: #e74c3c;
+  font-weight: 500;
+}
+</style>
