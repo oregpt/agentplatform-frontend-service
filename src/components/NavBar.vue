@@ -3,16 +3,20 @@
     <div class="navbar-brand">
       <router-link to="/" class="logo">OreGPT Agent Platform</router-link>
     </div>
-    <div class="navbar-menu">
+    <div class="navbar-menu" v-if="isAuthenticated">
       <router-link to="/dashboard" class="navbar-item">Dashboard</router-link>
       <router-link to="/organizations" class="navbar-item">Organizations</router-link>
       <router-link to="/agents" class="navbar-item">Agents</router-link>
+      <router-link to="/files" class="navbar-item">Files</router-link>
       <router-link to="/users" class="navbar-item">Users</router-link>
     </div>
     <div class="navbar-end">
       <div class="user-info" v-if="user">
         <span>{{ user.email }}</span>
         <button @click="logout" class="logout-btn">Logout</button>
+      </div>
+      <div v-else-if="!isAuthenticated">
+        <router-link to="/login" class="login-btn">Login</router-link>
       </div>
     </div>
   </nav>
@@ -22,6 +26,13 @@
 import { useAuthStore } from '../store/auth'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+
+const props = defineProps({
+  isAuthenticated: {
+    type: Boolean,
+    default: false
+  }
+})
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -94,5 +105,19 @@ const logout = async () => {
 
 .logout-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
+}
+
+.login-btn {
+  background-color: #3498db;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: background-color 0.3s;
+}
+
+.login-btn:hover {
+  background-color: #2980b9;
 }
 </style>

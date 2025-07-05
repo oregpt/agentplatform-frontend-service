@@ -1,7 +1,7 @@
 <template>
   <div class="app">
-    <header v-if="isAuthenticated">
-      <nav-bar />
+    <header>
+      <nav-bar :is-authenticated="isAuthenticated" />
     </header>
     <main>
       <router-view />

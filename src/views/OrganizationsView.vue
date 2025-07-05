@@ -170,17 +170,24 @@ onMounted(async () => {
 })
 
 async function fetchOrganizations() {
-  loading.value = true
-  error.value = ''
   try {
+    loading.value = true
+    error.value = ''
+    console.log('Fetching organizations...')
     const response = await organizationsApi.getAll()
-    organizations.value = response.data
+    console.log('Organizations API response:', response)
+    
+    // Check if response has the expected structure
+    if (response && response.data) {
+      organizations.value = response.data
+      console.log('Organizations loaded:', organizations.value)
+    } else {
+      console.error('Unexpected API response format:', response)
+      error.value = 'Unexpected API response format'
+    }
   } catch (err) {
     console.error('Error fetching organizations:', err)
-    error.value = 'Failed to load organizations. Please try again.'
-    if (notify) {
-      notify.error('Failed to load organizations')
-    }
+    error.value = `Failed to load organizations: ${err.message || 'Unknown error'}`
   } finally {
     loading.value = false
   }

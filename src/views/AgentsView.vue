@@ -13,38 +13,51 @@
         </option>
       </select>
     </div>
-
-    <div v-if="loading" class="loading">Loading agents...</div>
     
-    <div v-else-if="agents.length === 0" class="empty-state">
-      <p>No agents found in this organization. Create your first agent to get started.</p>
+    <SearchBar 
+      v-model="searchQuery" 
+      placeholder="Search agents..." 
+      @search="handleSearch"
+      @clear="handleClearSearch"
+    />
+
+    <ErrorMessage v-if="error" :message="error" @close="error = null" />
+    
+    <LoadingSpinner v-if="loading" message="Loading agents..." />
+    
+    <div v-else-if="filteredAgents.length === 0" class="empty-state">
+      <p v-if="searchQuery">No agents found matching "{{ searchQuery }}". Try a different search term.</p>
+      <p v-else>No agents found in this organization. Create your first agent to get started.</p>
       <button @click="showCreateModal = true" class="create-btn">Create Agent</button>
     </div>
     
     <div v-else class="agents-list">
-      <div v-for="agent in agents" :key="agent.id" class="agent-card">
-        <div class="agent-info">
-          <h2>{{ agent.name }}</h2>
-          <p class="agent-id">ID: {{ agent.id }}</p>
-          <p v-if="agent.description">{{ agent.description }}</p>
-        </div>
-        <div class="agent-stats">
-          <div class="stat">
-            <span class="stat-label">Files</span>
-            <span class="stat-value">{{ agent.filesCount || 0 }}</span>
+      <ContentCard 
+        v-for="agent in filteredAgents" 
+        :key="agent.id"
+        :title="agent.name"
+        :subtitle="`ID: ${agent.id}`"
+        :description="agent.description"
+      >
+        <template #stats>
+          <div class="agent-stats">
+            <div class="stat">
+              <span class="stat-label">Files</span>
+              <span class="stat-value">{{ agent.filesCount || 0 }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Users</span>
+              <span class="stat-value">{{ agent.usersCount || 0 }}</span>
+            </div>
           </div>
-          <div class="stat">
-            <span class="stat-label">Users</span>
-            <span class="stat-value">{{ agent.usersCount || 0 }}</span>
-          </div>
-        </div>
-        <div class="agent-actions">
+        </template>
+        <template #actions>
           <router-link :to="`/agents/${agent.id}`" class="view-btn">View</router-link>
           <router-link :to="`/agents/${agent.id}/files`" class="files-btn">Files</router-link>
           <button @click="editAgent(agent)" class="edit-btn">Edit</button>
           <button @click="confirmDelete(agent)" class="delete-btn">Delete</button>
-        </div>
-      </div>
+        </template>
+      </ContentCard>
     </div>
 
     <!-- Create/Edit Modal -->
@@ -77,16 +90,32 @@
             <label for="metadata">Metadata (JSON)</label>
             <textarea 
               id="metadata" 
-              v-model="formData.metadataJson" 
+              v-model="formData.metadata" 
               placeholder='{"key": "value"}'
               rows="5"
             ></textarea>
             <p class="help-text">Optional JSON metadata for agent configuration</p>
           </div>
           
+          <div class="form-group">
+            <label>Upload Files (Optional)</label>
+            <FileUploader
+              ref="fileUploader"
+              :multiple="true"
+              :accepted-file-types="'.md'"
+              title="Drag & Drop Files"
+              description="Upload markdown files for this agent"
+              :show-preview="true"
+              @files-selected="onFilesSelected"
+              @upload-progress="onUploadProgress"
+            />
+            <div v-if="uploadError" class="upload-error">{{ uploadError }}</div>
+            <div class="help-text">Upload markdown (.md) files for this agent</div>
+          </div>
+          
           <div class="modal-actions">
             <button type="button" @click="closeModal" class="cancel-btn">Cancel</button>
-            <button type="submit" class="submit-btn">
+            <button type="submit" class="submit-btn" :disabled="isUploading">
               {{ showEditModal ? 'Update' : 'Create' }}
             </button>
           </div>
@@ -94,31 +123,40 @@
       </div>
     </div>
     
-    <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="modal-backdrop">
-      <div class="modal">
-        <h2>Delete Agent</h2>
-        <p>Are you sure you want to delete <strong>{{ selectedAgent.name }}</strong>?</p>
-        <p class="warning">This action cannot be undone. All associated files and user assignments will be permanently deleted.</p>
-        
-        <div class="modal-actions">
-          <button @click="showDeleteModal = false" class="cancel-btn">Cancel</button>
-          <button @click="deleteAgent" class="delete-btn">Delete</button>
-        </div>
-      </div>
-    </div>
+    <!-- Delete Confirmation Dialog -->
+    <ConfirmDialog
+      v-model="showDeleteModal"
+      title="Delete Agent"
+      :message="`Are you sure you want to delete ${selectedAgent.name}?`"
+      details="This action cannot be undone. All associated files and user assignments will be permanently deleted."
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      confirm-type="danger"
+      icon="delete"
+      @confirm="deleteAgent"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, inject } from 'vue'
+import { useRouter } from 'vue-router'
+import { agentsApi, organizationsApi, filesApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
-import { organizationsApi, agentsApi } from '../services/api'
+import SearchBar from '../components/SearchBar.vue'
+import ContentCard from '../components/ContentCard.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+import LoadingSpinner from '../components/LoadingSpinner.vue'
+import ErrorMessage from '../components/ErrorMessage.vue'
+import FileUploader from '../components/FileUploader.vue'
 
+const notify = inject('notify')
 const authStore = useAuthStore()
 const organizations = ref([])
 const agents = ref([])
-const loading = ref(true)
+const loading = ref(false)
+const error = ref(null)
+const searchQuery = ref('')
 const selectedOrgId = ref('')
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
@@ -127,7 +165,26 @@ const selectedAgent = ref({})
 const formData = ref({
   name: '',
   description: '',
-  metadataJson: '{}'
+  metadata: '{}'
+})
+
+// File upload related refs
+const fileUploader = ref(null)
+const uploadedFiles = ref([])
+const uploadProgress = ref(0)
+const isUploading = ref(false)
+const uploadError = ref('')
+
+// Filter agents based on search query
+const filteredAgents = computed(() => {
+  if (!searchQuery.value) return agents.value
+  
+  const query = searchQuery.value.toLowerCase()
+  return agents.value.filter(agent => 
+    agent.name.toLowerCase().includes(query) || 
+    (agent.description && agent.description.toLowerCase().includes(query)) ||
+    agent.id.toLowerCase().includes(query)
+  )
 })
 
 onMounted(async () => {
@@ -142,32 +199,52 @@ async function fetchOrganizations() {
   try {
     const response = await organizationsApi.getAll()
     organizations.value = response.data
-    
-    // If user has an organization ID set in auth store, use that
-    if (authStore.organizationId && !selectedOrgId.value) {
-      selectedOrgId.value = authStore.organizationId
-    } 
-    // Otherwise use the first organization if available
-    else if (organizations.value.length > 0 && !selectedOrgId.value) {
-      selectedOrgId.value = organizations.value[0].id
-    }
-  } catch (error) {
-    console.error('Error fetching organizations:', error)
+  } catch (err) {
+    error.value = 'Failed to load organizations. Please try again.'
+    notify({
+      type: 'error',
+      message: 'Failed to load organizations',
+      details: err.message
+    })
+    console.error('Error fetching organizations:', err)
   }
 }
 
 async function fetchAgents() {
-  if (!selectedOrgId.value) return
-  
-  loading.value = true
   try {
-    const response = await agentsApi.getAll(selectedOrgId.value)
-    agents.value = response.data
-  } catch (error) {
-    console.error('Error fetching agents:', error)
+    loading.value = true
+    error.value = ''
+    console.log('Fetching agents')
+    const response = await agentsApi.getAll()
+    console.log('Agents API response:', response)
+    
+    // Check if response has the expected structure
+    if (response && response.data && response.data.agents) {
+      // Filter agents by the selected organization if one is selected
+      if (selectedOrgId.value) {
+        agents.value = response.data.agents.filter(agent => agent.organizationId === selectedOrgId.value)
+      } else {
+        agents.value = response.data.agents
+      }
+      console.log('Agents loaded:', agents.value)
+    } else {
+      console.error('Unexpected API response format:', response)
+      error.value = 'Unexpected API response format'
+    }
+  } catch (err) {
+    console.error('Error fetching agents:', err)
+    error.value = `Failed to load agents: ${err.message || 'Unknown error'}`
   } finally {
     loading.value = false
   }
+}
+
+function handleSearch(query) {
+  searchQuery.value = query
+}
+
+function handleClearSearch() {
+  searchQuery.value = ''
 }
 
 function editAgent(agent) {
@@ -175,8 +252,18 @@ function editAgent(agent) {
   formData.value = {
     name: agent.name,
     description: agent.description || '',
-    metadataJson: agent.metadata ? JSON.stringify(agent.metadata, null, 2) : '{}'
+    metadata: JSON.stringify(agent.metadata || {}, null, 2)
   }
+  
+  // Reset file upload state
+  uploadedFiles.value = []
+  uploadProgress.value = 0
+  isUploading.value = false
+  uploadError.value = ''
+  if (fileUploader.value) {
+    fileUploader.value.reset()
+  }
+  
   showEditModal.value = true
 }
 
@@ -185,18 +272,39 @@ function confirmDelete(agent) {
   showDeleteModal.value = true
 }
 
-async function createAgent() {
-  if (!selectedOrgId.value) {
-    alert('Please select an organization first')
-    return
-  }
-  
+async function deleteAgent() {
   try {
-    let metadata = {}
+    loading.value = true
+    await agentsApi.delete(selectedAgent.value.id)
+    await fetchAgents()
+    showDeleteModal.value = false
+    notify({
+      type: 'success',
+      message: `Agent "${selectedAgent.value.name}" deleted successfully`
+    })
+  } catch (err) {
+    notify({
+      type: 'error',
+      message: 'Failed to delete agent',
+      details: err.message
+    })
+    console.error('Error deleting agent:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function createAgent() {
+  try {
+    // Validate JSON metadata
     try {
-      metadata = JSON.parse(formData.value.metadataJson)
+      JSON.parse(formData.value.metadata)
     } catch (e) {
-      alert('Invalid JSON in metadata field')
+      notify({
+        type: 'error',
+        message: 'Invalid JSON metadata format',
+        details: e.message
+      })
       return
     }
     
@@ -204,60 +312,137 @@ async function createAgent() {
       name: formData.value.name,
       description: formData.value.description,
       organizationId: selectedOrgId.value,
-      metadata: metadata
+      metadata: JSON.parse(formData.value.metadata)
+    }
+
+    const response = await agentsApi.create(agentData)
+    const createdAgentId = response.data.id
+    
+    // Upload files if any are selected
+    if (uploadedFiles.value.length > 0) {
+      await uploadAgentFiles(createdAgentId)
     }
     
-    await agentsApi.create(agentData)
     await fetchAgents()
-    closeModal()
-  } catch (error) {
-    console.error('Error creating agent:', error)
+    showCreateModal.value = false
+    resetForm()
+    notify({
+      type: 'success',
+      message: 'Agent created successfully'
+    })
+  } catch (err) {
+    notify({
+      type: 'error',
+      message: 'Failed to create agent',
+      details: err.message
+    })
+    console.error('Error creating agent:', err)
   }
 }
 
 async function updateAgent() {
   try {
-    let metadata = {}
+    // Validate JSON metadata
     try {
-      metadata = JSON.parse(formData.value.metadataJson)
+      JSON.parse(formData.value.metadata)
     } catch (e) {
-      alert('Invalid JSON in metadata field')
+      notify({
+        type: 'error',
+        message: 'Invalid JSON metadata format',
+        details: e.message
+      })
       return
     }
-    
+
     const agentData = {
       name: formData.value.name,
       description: formData.value.description,
-      metadata: metadata
+      metadata: JSON.parse(formData.value.metadata)
+    }
+
+    await agentsApi.update(selectedAgent.value.id, agentData)
+    
+    // Upload files if any are selected
+    if (uploadedFiles.value.length > 0) {
+      await uploadAgentFiles(selectedAgent.value.id)
     }
     
-    await agentsApi.update(selectedAgent.value.id, agentData)
     await fetchAgents()
-    closeModal()
-  } catch (error) {
-    console.error('Error updating agent:', error)
+    showEditModal.value = false
+    notify({
+      type: 'success',
+      message: 'Agent updated successfully'
+    })
+  } catch (err) {
+    notify({
+      type: 'error',
+      message: 'Failed to update agent',
+      details: err.message
+    })
+    console.error('Error updating agent:', err)
   }
 }
 
-async function deleteAgent() {
+async function uploadAgentFiles(agentId) {
   try {
-    await agentsApi.delete(selectedAgent.value.id)
-    await fetchAgents()
-    showDeleteModal.value = false
-  } catch (error) {
-    console.error('Error deleting agent:', error)
+    isUploading.value = true
+    const formData = new FormData()
+    uploadedFiles.value.forEach(file => {
+      formData.append('files', file)
+    })
+    const response = await filesApi.upload(agentId, formData, {
+      onUploadProgress: (progressEvent) => {
+        uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+      }
+    })
+    uploadedFiles.value = []
+    uploadProgress.value = 0
+    isUploading.value = false
+    notify({
+      type: 'success',
+      message: 'Files uploaded successfully'
+    })
+  } catch (err) {
+    uploadError.value = 'Failed to upload files'
+    isUploading.value = false
+    notify({
+      type: 'error',
+      message: 'Failed to upload files',
+      details: err.message
+    })
+    console.error('Error uploading files:', err)
   }
+}
+
+function onFilesSelected(files) {
+  uploadedFiles.value = files
+}
+
+function onUploadProgress(progress) {
+  uploadProgress.value = progress
 }
 
 function closeModal() {
   showCreateModal.value = false
   showEditModal.value = false
+  resetForm()
+}
+
+function resetForm() {
   formData.value = {
     name: '',
     description: '',
-    metadataJson: '{}'
+    metadata: '{}'
   }
-  selectedAgent.value = {}
+  
+  // Reset file upload state
+  uploadedFiles.value = []
+  uploadProgress.value = 0
+  isUploading.value = false
+  uploadError.value = ''
+  if (fileUploader.value) {
+    fileUploader.value.reset()
+  }
 }
 </script>
 
@@ -472,6 +657,21 @@ function closeModal() {
   font-size: 0.8rem;
   color: #7f8c8d;
   margin-top: 5px;
+}
+
+.upload-error {
+  color: #e74c3c;
+  font-size: 0.9rem;
+  margin-top: 8px;
+}
+
+.manage-files-link {
+  color: #3498db;
+  text-decoration: none;
+}
+
+.manage-files-link:hover {
+  text-decoration: underline;
 }
 
 .modal-actions {

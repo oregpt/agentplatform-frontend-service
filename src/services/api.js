@@ -1,8 +1,13 @@
 import axios from 'axios'
 
+// Get API base URL from environment variables or use default
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
+console.log('API Base URL:', API_BASE_URL)
+
 // Base API configuration
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -19,7 +24,7 @@ export const organizationsApi = {
 
 // Agents API
 export const agentsApi = {
-  getAll: (orgId) => api.get(`/organizations/${orgId}/agents`),
+  getAll: () => api.get('/agents'),
   getById: (id) => api.get(`/agents/${id}`),
   create: (data) => api.post('/agents', data),
   update: (id, data) => api.put(`/agents/${id}`, data),
@@ -28,9 +33,9 @@ export const agentsApi = {
 
 // Files API
 export const filesApi = {
-  getAll: (agentId) => api.get(`/agents/${agentId}/files`),
+  getAll: (agentId) => api.get(`/files/agent/${agentId}`),
   getById: (id) => api.get(`/files/${id}`),
-  upload: (agentId, formData) => api.post(`/agents/${agentId}/files`, formData, {
+  upload: (agentId, formData) => api.post(`/files/agent/${agentId}`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -41,18 +46,18 @@ export const filesApi = {
 
 // Users API
 export const usersApi = {
-  getAll: (orgId) => api.get(`/organizations/${orgId}/users`),
-  getById: (orgId, userId) => api.get(`/organizations/${orgId}/users/${userId}`),
-  create: (orgId, data) => api.post(`/organizations/${orgId}/users`, data),
-  update: (orgId, userId, data) => api.put(`/organizations/${orgId}/users/${userId}`, data),
-  delete: (orgId, userId) => api.delete(`/organizations/${orgId}/users/${userId}`)
+  getAll: () => api.get('/users'),
+  getById: (userId) => api.get(`/users/${userId}`),
+  create: (data) => api.post('/users', data),
+  update: (userId, data) => api.put(`/users/${userId}`, data),
+  delete: (userId) => api.delete(`/users/${userId}`)
 }
 
 // User-Agent API
 export const userAgentApi = {
-  assignUserToAgent: (userId, agentId) => api.post(`/users/${userId}/agents/${agentId}`),
-  removeUserFromAgent: (userId, agentId) => api.delete(`/users/${userId}/agents/${agentId}`),
-  getUserAgents: (userId) => api.get(`/users/${userId}/agents`)
+  assignUserToAgent: (userId, agentId) => api.post('/users/assign', { userId, agentId }),
+  removeUserFromAgent: (userId, agentId) => api.delete(`/users/by-id/${userId}/agents/${agentId}`),
+  getUserAgents: (userId) => api.get(`/users/by-id/${userId}/agents`)
 }
 
 // Intercept requests to add auth token
