@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '../store/auth'
+import { getFirebaseAuth } from '../services/firebase'
+import { onAuthStateChanged } from 'firebase/auth'
 
 // Views
 import LoginView from '../views/LoginView.vue'
@@ -83,8 +84,6 @@ const router = createRouter({
 })
 
 // Global authentication state from Firebase
-import { getFirebaseAuth } from '../services/firebase'
-import { onAuthStateChanged } from 'firebase/auth'
 
 // Simple global state for auth
 let currentUser = null
@@ -128,6 +127,6 @@ router.beforeEach(async (to, from, next) => {
   // Otherwise proceed normally
   console.log(`Proceeding to ${to.path}, auth state: ${currentUser ? 'authenticated' : 'not authenticated'}`)
   next()
-}
+})
 
 export default router
