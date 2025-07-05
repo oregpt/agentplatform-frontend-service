@@ -63,11 +63,39 @@ export const userAgentApi = {
 
 // Intercept requests to add auth token
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
     
     // Get token from localStorage (set by auth store)
-    const token = localStorage.getItem('authToken')
+    let token = localStorage.getItem('authToken')
+    
+    // If no token in localStorage but Firebase user exists, try to get a fresh token
+    if (!token) {
+      const auth = getAuth()
+      if (auth.currentUser) {
+        try {
+          console.log('No token in localStorage but user is logged in, attempting to get fresh token')
+          // Try to get a fresh Firebase token
+          const firebaseToken = await auth.currentUser.getIdToken(true)
+          
+          // Get auth service URL from environment
+          const authApiUrl = import.meta.env.VITE_AUTH_API_URL
+          
+          // Exchange for JWT
+          const response = await axios.post(`${authApiUrl}/api/v1/auth/generate-jwt`, {
+            firebase_token: firebaseToken,
+            organization_id: ''
+          })
+          
+          // Save the token
+          token = response.data.token
+          localStorage.setItem('authToken', token)
+          console.log('Successfully obtained fresh token')
+        } catch (error) {
+          console.error('Failed to get fresh token:', error)
+        }
+      }
+    }
     
     if (token) {
       console.log('Adding auth token to request')

@@ -97,7 +97,27 @@ const filesCount = computed(() => files.value.length)
 
 onMounted(async () => {
   if (authStore.isAuthenticated) {
-    fetchData()
+    // Wait for token to be available before fetching data
+    if (authStore.token) {
+      fetchData()
+    } else {
+      console.log('Auth token not yet available, waiting...')
+      // Wait for token to be available
+      const tokenCheckInterval = setInterval(() => {
+        if (authStore.token || localStorage.getItem('authToken')) {
+          console.log('Auth token now available, fetching data')
+          clearInterval(tokenCheckInterval)
+          fetchData()
+        }
+      }, 500) // Check every 500ms
+      
+      // Safety timeout after 10 seconds
+      setTimeout(() => {
+        clearInterval(tokenCheckInterval)
+        console.warn('Timed out waiting for auth token, attempting to fetch data anyway')
+        fetchData()
+      }, 10000)
+    }
   }
 })
 
