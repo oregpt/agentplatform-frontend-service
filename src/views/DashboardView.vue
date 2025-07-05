@@ -148,8 +148,8 @@ async function fetchData() {
     loading.value.files = true
     try {
       if (currentAgentId.value) {
-        const filesResponse = await filesApi.getByAgentId(currentAgentId.value)
-        files.value = filesResponse.data
+        const filesResponse = await filesApi.getAll(currentAgentId.value)
+        files.value = filesResponse.data.files || []
         console.log('Files loaded:', files.value.length)
       } else {
         files.value = []
@@ -164,13 +164,9 @@ async function fetchData() {
     // Fetch users
     loading.value.users = true
     try {
-      if (authStore.organizationId) {
-        const usersResponse = await organizationsApi.getById(authStore.organizationId)
-        users.value = usersResponse.data.users || []
-        console.log('Users loaded:', users.value.length)
-      } else {
-        users.value = []
-      }
+      const usersResponse = await usersApi.getAll()
+      users.value = usersResponse.data.users || []
+      console.log('Users loaded:', users.value.length)
     } catch (usersError) {
       console.error('Failed to load users:', usersError)
       users.value = [] // Initialize as empty array on error
