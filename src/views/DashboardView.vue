@@ -72,9 +72,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useAuthStore } from '../store/auth'
-import { organizationsApi, agentsApi, filesApi } from '../services/api'
+import { organizationsApi, agentsApi, filesApi, usersApi } from '../services/api'
 
 const authStore = useAuthStore()
 const organizations = ref([])
@@ -97,6 +97,14 @@ const filesCount = computed(() => files.value.length)
 
 onMounted(async () => {
   if (authStore.isAuthenticated) {
+    fetchData()
+  }
+})
+
+// Watch for organization changes and refresh data
+watch(() => authStore.organizationId, (newOrgId, oldOrgId) => {
+  if (newOrgId && newOrgId !== oldOrgId) {
+    console.log('Organization changed, refreshing dashboard data:', newOrgId)
     fetchData()
   }
 })

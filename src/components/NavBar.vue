@@ -1,7 +1,7 @@
 <template>
   <nav class="navbar">
     <div class="navbar-brand">
-      <router-link to="/" class="logo">OreGPT Agent Platform</router-link>
+      <router-link to="/" class="logo">Agents Everywhere</router-link>
     </div>
     <div class="navbar-menu" v-if="authStore.isAuthenticated">
       <router-link to="/dashboard" class="navbar-item">Dashboard</router-link>
