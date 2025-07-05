@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <div class="login-card">
-      <h1 class="login-title">OreGPT Agent Platform</h1>
+      <h1 class="login-title">Agents Everywhere</h1>
       <div v-if="error" class="error-message">{{ error }}</div>
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="form-group">
@@ -81,17 +81,26 @@ const handleLogin = async () => {
 }
 
 const handleGoogleLogin = async () => {
+  // Google login button clicked
   loading.value = true
   error.value = ''
   
   try {
+    console.log('Calling authStore.loginWithGoogle()')
     const success = await authStore.loginWithGoogle()
+    // After Google login attempt
+    console.log('Google login result:', success)
+    
     if (success) {
+      console.log('Google login successful, redirecting to dashboard')
+      // Before redirect to dashboard
       router.push('/dashboard')
     } else {
+      console.log('Google login failed')
       error.value = 'Google login failed.'
     }
   } catch (err) {
+    // Google login error
     console.error('Google login error:', err)
     error.value = err.message || 'An error occurred during Google login'
   } finally {

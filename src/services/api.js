@@ -63,13 +63,22 @@ export const userAgentApi = {
 // Intercept requests to add auth token
 api.interceptors.request.use(
   (config) => {
+    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
+    
+    // Get token from localStorage (set by auth store)
     const token = localStorage.getItem('authToken')
+    
     if (token) {
+      console.log('Adding auth token to request')
       config.headers['Authorization'] = `Bearer ${token}`
+    } else {
+      console.warn('No auth token available for API request')
     }
+    
     return config
   },
   (error) => {
+    console.error('Request interceptor error:', error)
     return Promise.reject(error)
   }
 )
@@ -77,13 +86,45 @@ api.interceptors.request.use(
 // Intercept responses to handle common errors
 api.interceptors.response.use(
   (response) => {
+    console.log(`API Response: ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`)
     return response
   },
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Unauthorized - redirect to login
-      window.location.href = '/login'
+    if (error.response) {
+      console.error(`API Error ${error.response.status}: ${error.config?.method?.toUpperCase()} ${error.config?.url}`, error.response.data)
+      
+      if (error.response.status === 401) {
+        console.warn('Unauthorized API request - token may be invalid')
+        
+        // Get Firebase auth instance
+        const { getAuth } = require('firebase/auth')
+        const auth = getAuth()
+        
+        // Check if user is still logged in with Firebase
+        if (auth.currentUser) {
+          console.log('Still logged in with Firebase, refreshing token...')
+          // Try to refresh token
+          auth.currentUser.getIdToken(true)
+            .then(newToken => {
+              console.log('Token refreshed successfully')
+              localStorage.setItem('authToken', newToken)
+            })
+            .catch(refreshError => {
+              console.error('Failed to refresh token:', refreshError)
+              // Force logout on token refresh failure
+              auth.signOut().then(() => {
+                window.location.href = '/login'
+              })
+            })
+        } else {
+          // Not logged in with Firebase, redirect to login
+          window.location.href = '/login'
+        }
+      }
+    } else {
+      console.error('API request failed:', error.message)
     }
+    
     return Promise.reject(error)
   }
 )

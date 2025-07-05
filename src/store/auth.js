@@ -21,47 +21,110 @@ export const useAuthStore = defineStore('auth', () => {
   
   // Initialize auth state
   function init() {
-    const auth = getFirebaseAuth()
+    // Auth store initialization
+    console.log('%cInitializing auth store', 'color: purple; font-weight: bold')
     
-    // Set loading to true initially
+    // Log environment variables to help debug production issues
+    console.log('Auth store environment:', {
+      authApiUrl: import.meta.env.VITE_AUTH_API_URL,
+      backendApiUrl: import.meta.env.VITE_BACKEND_API_URL,
+      apiBaseUrl: import.meta.env.VITE_API_BASE_URL,
+      mode: import.meta.env.MODE
+    })
+    
+    const auth = getFirebaseAuth()
     loading.value = true
     
-    // Use a persistent listener for auth state changes
+    // Set up token refresh interval
+    let tokenRefreshInterval = null
+    
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log('Firebase auth state changed:', firebaseUser ? `logged in as ${firebaseUser.email}` : 'logged out')
+      // Firebase auth state changed
+      console.log('%cFirebase auth state changed:', 'color: blue; font-weight: bold', 
+        firebaseUser ? `logged in as ${firebaseUser.email}` : 'logged out')
       
       try {
         if (firebaseUser) {
-          // User is signed in
-          user.value = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL
+          // User signed in
+          console.log('%cUser signed in, updating store', 'color: green')
+          
+          // Update user info
+          user.value = { 
+            uid: firebaseUser.uid, 
+            email: firebaseUser.email, 
+            displayName: firebaseUser.displayName, 
+            photoURL: firebaseUser.photoURL 
           }
           
-          // Get Firebase ID token
-          const idToken = await firebaseUser.getIdToken(true) // Force refresh token
-          token.value = idToken
-          
-          // Set token for API requests
-          axios.defaults.headers.common['Authorization'] = `Bearer ${idToken}`
-          
-          console.log('Authentication successful')
-          console.log('User authenticated state:', isAuthenticated.value)
+          // Get fresh token
+          // Getting ID token
+          console.log('Fetching fresh ID token')
+          try {
+            const idToken = await firebaseUser.getIdToken(true)
+            token.value = idToken
+            
+            // Decode token to check expiration
+            const tokenData = JSON.parse(atob(idToken.split('.')[1]))
+            const expirationTime = tokenData.exp * 1000 // Convert to milliseconds
+            const currentTime = Date.now()
+            const timeRemaining = expirationTime - currentTime
+            
+            console.log(`Token obtained successfully. Expires in ${Math.floor(timeRemaining / 60000)} minutes`)
+            
+            // Set up token refresh - refresh 5 minutes before expiration
+            if (tokenRefreshInterval) {
+              clearInterval(tokenRefreshInterval)
+            }
+            
+            const refreshTime = Math.max(timeRemaining - (5 * 60 * 1000), 60000) // 5 minutes before expiry or 1 minute minimum
+            console.log(`Setting token refresh in ${Math.floor(refreshTime / 60000)} minutes`)
+            
+            tokenRefreshInterval = setInterval(async () => {
+              console.log('Refreshing Firebase ID token')
+              try {
+                const freshToken = await firebaseUser.getIdToken(true)
+                token.value = freshToken
+                axios.defaults.headers.common['Authorization'] = `Bearer ${freshToken}`
+                console.log('Token refreshed successfully')
+              } catch (refreshError) {
+                console.error('Error refreshing token:', refreshError)
+              }
+            }, refreshTime)
+            
+            // Set authorization header
+            axios.defaults.headers.common['Authorization'] = `Bearer ${idToken}`
+            
+            // Store token in localStorage for API interceptor
+            localStorage.setItem('authToken', idToken)
+            
+          } catch (tokenError) {
+            console.error('Error getting ID token:', tokenError)
+            // Force logout if token retrieval fails
+            auth.signOut()
+          }
         } else {
-          // User is signed out
+          console.log('%cUser signed out, clearing auth state', 'color: orange')
+          // Clear all auth data
           user.value = null
           token.value = null
           organizationId.value = null
           delete axios.defaults.headers.common['Authorization']
-          console.log('User signed out')
+          localStorage.removeItem('authToken')
+          
+          // Clear token refresh interval
+          if (tokenRefreshInterval) {
+            clearInterval(tokenRefreshInterval)
+            tokenRefreshInterval = null
+          }
         }
-      } catch (err) {
-        console.error('Error in auth state change handler:', err)
-        error.value = err.message
+      } catch (error) {
+        console.error('Error in auth state change handler:', error)
+        user.value = null
+        token.value = null
+        organizationId.value = null
+        delete axios.defaults.headers.common['Authorization']
+        localStorage.removeItem('authToken')
       } finally {
-        // Always set loading to false when done
         loading.value = false
       }
     }, (err) => {
@@ -95,6 +158,7 @@ export const useAuthStore = defineStore('auth', () => {
   
   // Login with Google
   async function loginWithGoogle() {
+    debugger; // BREAKPOINT: Starting Google login
     const auth = getFirebaseAuth()
     loading.value = true
     error.value = null

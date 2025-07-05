@@ -10,6 +10,7 @@ import './assets/main.css'
 
 // Initialize Firebase
 console.log('About to initialize Firebase in main.js')
+// Before Firebase initialization
 try {
   initializeFirebase()
   console.log('Firebase initialization completed in main.js')
@@ -25,6 +26,7 @@ app.use(createPinia())
 
 // Initialize auth state after Pinia is set up
 import { useAuthStore } from './store/auth'
+// Before auth store initialization
 const authStore = useAuthStore()
 authStore.init()
 console.log('Auth state initialization started')
