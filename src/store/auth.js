@@ -23,49 +23,56 @@ export const useAuthStore = defineStore('auth', () => {
   function init() {
     const auth = getFirebaseAuth()
     
-    onAuthStateChanged(auth, async (firebaseUser) => {
-      loading.value = true
+    // Set loading to true initially
+    loading.value = true
+    
+    // Use a persistent listener for auth state changes
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('Firebase auth state changed:', firebaseUser ? `logged in as ${firebaseUser.email}` : 'logged out')
       
-      if (firebaseUser) {
-        // User is signed in
-        user.value = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-        }
-        
-        // Get Firebase ID token
-        const idToken = await firebaseUser.getIdToken()
-        token.value = idToken
-        
-        // Set token for API requests
-        axios.defaults.headers.common['Authorization'] = `Bearer ${idToken}`
-        
-        // Get user details from auth service
-        try {
-          console.log('Authenticated user:', user.value)
-          console.log('Token:', token.value)
+      try {
+        if (firebaseUser) {
+          // User is signed in
+          user.value = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL
+          }
           
-          // Skip the user details fetch for now as the endpoint might not be available
-          // We'll use the Firebase user info directly
+          // Get Firebase ID token
+          const idToken = await firebaseUser.getIdToken(true) // Force refresh token
+          token.value = idToken
           
-          // For debugging purposes
+          // Set token for API requests
+          axios.defaults.headers.common['Authorization'] = `Bearer ${idToken}`
+          
           console.log('Authentication successful')
           console.log('User authenticated state:', isAuthenticated.value)
-        } catch (err) {
-          console.error('Error fetching user details:', err)
-          // Even if this fails, we're still authenticated with Firebase
+        } else {
+          // User is signed out
+          user.value = null
+          token.value = null
+          organizationId.value = null
+          delete axios.defaults.headers.common['Authorization']
+          console.log('User signed out')
         }
-      } else {
-        // User is signed out
-        user.value = null
-        token.value = null
-        organizationId.value = null
-        delete axios.defaults.headers.common['Authorization']
+      } catch (err) {
+        console.error('Error in auth state change handler:', err)
+        error.value = err.message
+      } finally {
+        // Always set loading to false when done
+        loading.value = false
       }
-      
+    }, (err) => {
+      // Error handler for onAuthStateChanged
+      console.error('Auth state observer error:', err)
+      error.value = err.message
       loading.value = false
     })
+    
+    // Return unsubscribe function (not used currently but good practice)
+    return unsubscribe
   }
   
   // Login with email and password
@@ -93,16 +100,32 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
     
     try {
+      console.log('Starting Google login process...')
       const provider = new GoogleAuthProvider()
-      await signInWithPopup(auth, provider)
+      // Add scopes if needed
+      provider.addScope('email')
+      provider.addScope('profile')
+      
+      // Set custom parameters
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      })
+      
+      const result = await signInWithPopup(auth, provider)
+      console.log('Google login successful:', result.user.email)
+      
+      // The user credential is available in result.credential
+      // This gives you a Google Access Token which can be used to access the Google API
+      // const credential = GoogleAuthProvider.credentialFromResult(result);
+      // const token = credential.accessToken;
+      
       return true
     } catch (err) {
       console.error('Google login error:', err)
       error.value = err.message
       return false
-    } finally {
-      loading.value = false
     }
+    // Note: We don't set loading=false here because the onAuthStateChanged listener will do that
   }
 
   // Logout

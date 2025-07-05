@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getFirebaseAuth } from '../services/firebase'
-import { onAuthStateChanged } from 'firebase/auth'
+import { useAuthStore } from '../store/auth'
 
 // Views
 import LoginView from '../views/LoginView.vue'
@@ -83,43 +82,51 @@ const router = createRouter({
   ]
 })
 
-// Global authentication state
-let currentUser = null
-let authInitialized = false
-const auth = getFirebaseAuth()
-
-// Set up auth state listener once
-onAuthStateChanged(auth, (user) => {
-  currentUser = user
-  authInitialized = true
-  console.log('Auth state changed:', user ? 'logged in' : 'logged out')
-  console.log('Current user updated:', currentUser ? currentUser.email : 'null')
-})
-
-// Navigation guard
-router.beforeEach(async (to, from, next) => {
-  // Wait for a short time to ensure auth state is initialized if needed
-  if (!authInitialized) {
-    console.log('Waiting for auth state to initialize...')
-    await new Promise(resolve => setTimeout(resolve, 500))
-  }
-
+// Navigation guard - using Pinia store directly instead of Firebase SDK
+router.beforeEach((to, from, next) => {
+  // Get auth store - must be done inside the navigation guard to ensure it's available
+  const authStore = useAuthStore()
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   
+  console.log(`Navigation guard: path=${to.path}, requiresAuth=${requiresAuth}, isAuthenticated=${authStore.isAuthenticated}, loading=${authStore.loading}`)
+  
+  // If auth is still loading, wait for it
+  if (authStore.loading) {
+    console.log('Auth state is still loading, delaying navigation')
+    // Return a promise that resolves when auth is no longer loading
+    return new Promise((resolve) => {
+      const unwatch = authStore.$subscribe((mutation, state) => {
+        if (!state.loading) {
+          console.log('Auth loading complete, continuing navigation')
+          unwatch()
+          resolve(handleNavigation(to, next, state.isAuthenticated, requiresAuth))
+        }
+      })
+    })
+  }
+  
+  return handleNavigation(to, next, authStore.isAuthenticated, requiresAuth)
+})
+
+// Helper function to handle navigation based on auth state
+function handleNavigation(to, next, isAuthenticated, requiresAuth) {
   // For login page, redirect to dashboard if already logged in
-  if (to.name === 'login' && currentUser) {
+  if (to.name === 'login' && isAuthenticated) {
     console.log('Already logged in, redirecting to dashboard')
     next('/dashboard')
     return
   }
   
-  if (requiresAuth && !currentUser) {
+  // For protected routes, redirect to login if not authenticated
+  if (requiresAuth && !isAuthenticated) {
     console.log('Auth required but not logged in, redirecting to login')
     next('/login')
-  } else {
-    console.log(`Navigating to ${to.path}, auth state: ${currentUser ? 'authenticated' : 'not authenticated'}`)
-    next()
+    return
   }
-})
+  
+  // Otherwise proceed normally
+  console.log(`Proceeding to ${to.path}, auth state: ${isAuthenticated ? 'authenticated' : 'not authenticated'}`)
+  next()
+}
 
 export default router
