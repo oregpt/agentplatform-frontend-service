@@ -91,7 +91,9 @@ async function loadOrganizations() {
   
   try {
     const response = await organizationsApi.getAll();
-    organizations.value = response.data;
+    // Handle both formats: direct array or nested under 'organizations' key
+    organizations.value = response.data.organizations || response.data || [];
+    console.log('Organizations loaded:', organizations.value.length);
     
     // If no organization is selected and we have organizations, select the first one
     if (!selectedOrganizationId.value && organizations.value.length > 0 && !props.includeAllOption) {

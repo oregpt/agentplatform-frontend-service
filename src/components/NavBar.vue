@@ -10,7 +10,7 @@
       <router-link to="/files" class="navbar-item">Files</router-link>
       <router-link to="/users" class="navbar-item">Users</router-link>
     </div>
-    <div class="org-selector" v-if="authStore.isAuthenticated && authStore.userOrganizations.length > 0">
+    <div class="org-selector" v-if="authStore.isAuthenticated">
       <organization-selector 
         v-model="selectedOrgId" 
         @change="handleOrgChange" 

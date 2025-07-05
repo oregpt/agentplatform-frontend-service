@@ -122,9 +122,14 @@ async function fetchData() {
     // Fetch organizations
     loading.value.organizations = true
     try {
-      const orgResponse = await organizationsApi.getAll()
-      organizations.value = orgResponse.data
+      const organizationsResponse = await organizationsApi.getAll()
+      organizations.value = organizationsResponse.data.organizations || organizationsResponse.data || []
       console.log('Organizations loaded:', organizations.value.length)
+      
+      // If we have organizations, use the first one for files
+      if (organizations.value.length > 0) {
+        currentAgentId.value = organizations.value[0].id
+      }
     } catch (orgError) {
       console.warn('Failed to load organizations:', orgError)
       // Set a default organization for development
@@ -137,7 +142,7 @@ async function fetchData() {
     loading.value.agents = true
     try {
       const agentsResponse = await agentsApi.getAll()
-      agents.value = agentsResponse.data
+      agents.value = agentsResponse.data.agents || agentsResponse.data || []
       
       // Set current agent ID for files view if we have agents
       if (agents.value.length > 0) {
@@ -173,7 +178,7 @@ async function fetchData() {
     loading.value.users = true
     try {
       const usersResponse = await usersApi.getAll()
-      users.value = usersResponse.data.users || []
+      users.value = usersResponse.data.users || usersResponse.data || []
       console.log('Users loaded:', users.value.length)
     } catch (usersError) {
       console.error('Failed to load users:', usersError)
