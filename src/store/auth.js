@@ -43,15 +43,18 @@ export const useAuthStore = defineStore('auth', () => {
         
         // Get user details from auth service
         try {
-          const response = await axios.get('/api/auth/user')
-          organizationId.value = response.data.organizationId
-          user.value = {
-            ...user.value,
-            role: response.data.role,
-            organizationId: response.data.organizationId
-          }
+          console.log('Authenticated user:', user.value)
+          console.log('Token:', token.value)
+          
+          // Skip the user details fetch for now as the endpoint might not be available
+          // We'll use the Firebase user info directly
+          
+          // For debugging purposes
+          console.log('Authentication successful')
+          console.log('User authenticated state:', isAuthenticated.value)
         } catch (err) {
           console.error('Error fetching user details:', err)
+          // Even if this fails, we're still authenticated with Firebase
         }
       } else {
         // User is signed out

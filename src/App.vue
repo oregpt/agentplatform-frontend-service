@@ -1,7 +1,7 @@
 <template>
   <div class="app">
     <header>
-      <nav-bar :is-authenticated="isAuthenticated" />
+      <nav-bar />
     </header>
     <main>
       <router-view />

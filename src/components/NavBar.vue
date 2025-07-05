@@ -3,7 +3,7 @@
     <div class="navbar-brand">
       <router-link to="/" class="logo">OreGPT Agent Platform</router-link>
     </div>
-    <div class="navbar-menu" v-if="isAuthenticated">
+    <div class="navbar-menu" v-if="authStore.isAuthenticated">
       <router-link to="/dashboard" class="navbar-item">Dashboard</router-link>
       <router-link to="/organizations" class="navbar-item">Organizations</router-link>
       <router-link to="/agents" class="navbar-item">Agents</router-link>
@@ -11,11 +11,11 @@
       <router-link to="/users" class="navbar-item">Users</router-link>
     </div>
     <div class="navbar-end">
-      <div class="user-info" v-if="user">
-        <span>{{ user.email }}</span>
+      <div class="user-info" v-if="authStore.user">
+        <span>{{ authStore.user.email }}</span>
         <button @click="logout" class="logout-btn">Logout</button>
       </div>
-      <div v-else-if="!isAuthenticated">
+      <div v-else>
         <router-link to="/login" class="login-btn">Login</router-link>
       </div>
     </div>

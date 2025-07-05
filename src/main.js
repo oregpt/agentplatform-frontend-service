@@ -23,6 +23,12 @@ const app = createApp(App)
 // Use Pinia for state management
 app.use(createPinia())
 
+// Initialize auth state after Pinia is set up
+import { useAuthStore } from './store/auth'
+const authStore = useAuthStore()
+authStore.init()
+console.log('Auth state initialization started')
+
 // Use Vue Router
 app.use(router)
 
