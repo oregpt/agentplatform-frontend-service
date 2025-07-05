@@ -31,6 +31,18 @@
         >
           {{ loading ? 'Logging in...' : 'Login' }}
         </button>
+        
+        <div class="separator">OR</div>
+        
+        <button 
+          type="button"
+          class="google-button"
+          @click="handleGoogleLogin"
+          :disabled="loading"
+        >
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo" class="google-icon">
+          Sign in with Google
+        </button>
       </form>
     </div>
   </div>
@@ -63,6 +75,25 @@ const handleLogin = async () => {
   } catch (err) {
     console.error('Login error:', err)
     error.value = err.message || 'An error occurred during login'
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleGoogleLogin = async () => {
+  loading.value = true
+  error.value = ''
+  
+  try {
+    const success = await authStore.loginWithGoogle()
+    if (success) {
+      router.push('/dashboard')
+    } else {
+      error.value = 'Google login failed.'
+    }
+  } catch (err) {
+    console.error('Google login error:', err)
+    error.value = err.message || 'An error occurred during Google login'
   } finally {
     loading.value = false
   }
@@ -144,5 +175,56 @@ input {
   border-radius: 4px;
   margin-bottom: 20px;
   text-align: center;
+}
+
+.separator {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 15px 0;
+  color: #95a5a6;
+}
+
+.separator::before,
+.separator::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #ddd;
+}
+
+.separator::before {
+  margin-right: 10px;
+}
+
+.separator::after {
+  margin-left: 10px;
+}
+
+.google-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  color: #757575;
+  border: 1px solid #ddd;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.google-button:hover {
+  background-color: #f5f5f5;
+}
+
+.google-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.google-icon {
+  height: 18px;
+  margin-right: 10px;
 }
 </style>

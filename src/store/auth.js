@@ -3,7 +3,9 @@ import { ref, computed } from 'vue'
 import { 
   signInWithEmailAndPassword, 
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth'
 import { getFirebaseAuth } from '../services/firebase'
 import axios from 'axios'
@@ -81,6 +83,25 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
   
+  // Login with Google
+  async function loginWithGoogle() {
+    const auth = getFirebaseAuth()
+    loading.value = true
+    error.value = null
+    
+    try {
+      const provider = new GoogleAuthProvider()
+      await signInWithPopup(auth, provider)
+      return true
+    } catch (err) {
+      console.error('Google login error:', err)
+      error.value = err.message
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
   // Logout
   async function logout() {
     const auth = getFirebaseAuth()
@@ -108,6 +129,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     init,
     login,
+    loginWithGoogle,
     logout
   }
 })
