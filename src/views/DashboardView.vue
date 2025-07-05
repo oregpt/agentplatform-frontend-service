@@ -130,17 +130,16 @@ async function fetchData() {
     try {
       const agentsResponse = await agentsApi.getAll()
       agents.value = agentsResponse.data
-      console.log('Agents loaded:', agents.value.length)
       
-      // Set current agent ID if we have agents
+      // Set current agent ID for files view if we have agents
       if (agents.value.length > 0) {
         currentAgentId.value = agents.value[0].id
       }
+      
+      console.log('Agents loaded:', agents.value.length)
     } catch (agentsError) {
-      console.warn('Failed to load agents:', agentsError)
-      // Set some sample agents for development
-      agents.value = [{ id: 'dev-agent-1', name: 'Sample Agent', description: 'A sample agent for development' }]
-      currentAgentId.value = 'dev-agent-1'
+      console.error('Failed to load agents:', agentsError)
+      agents.value = [] // Initialize as empty array on error
     } finally {
       loading.value.agents = false
     }
@@ -149,19 +148,15 @@ async function fetchData() {
     loading.value.files = true
     try {
       if (currentAgentId.value) {
-        const filesResponse = await filesApi.getAll(currentAgentId.value)
+        const filesResponse = await filesApi.getByAgentId(currentAgentId.value)
         files.value = filesResponse.data
         console.log('Files loaded:', files.value.length)
+      } else {
+        files.value = []
       }
     } catch (filesError) {
-      console.warn('Failed to load files:', filesError)
-      // Set some sample files for development
-      files.value = [{ 
-        id: 'dev-file-1', 
-        name: 'sample.txt', 
-        sizeBytes: 1024, 
-        createdAt: new Date().toISOString() 
-      }]
+      console.error('Failed to load files:', filesError)
+      files.value = [] // Initialize as empty array on error
     } finally {
       loading.value.files = false
     }
@@ -173,11 +168,12 @@ async function fetchData() {
         const usersResponse = await organizationsApi.getById(authStore.organizationId)
         users.value = usersResponse.data.users || []
         console.log('Users loaded:', users.value.length)
+      } else {
+        users.value = []
       }
     } catch (usersError) {
-      console.warn('Failed to load users:', usersError)
-      // Set some sample users for development
-      users.value = [{ id: 'dev-user-1', name: 'Sample User', email: authStore.user?.email || 'user@example.com' }]
+      console.error('Failed to load users:', usersError)
+      users.value = [] // Initialize as empty array on error
     } finally {
       loading.value.users = false
     }
