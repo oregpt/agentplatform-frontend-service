@@ -2,7 +2,7 @@
   <div class="users-container">
     <div class="header">
       <h1>Users</h1>
-      <button @click="showCreateModal = true" class="create-btn">Add User</button>
+      <button @click="showCreateModal = true" class="create-btn">Create User</button>
     </div>
 
     <div class="organization-selector" v-if="organizations.length > 0">
@@ -13,40 +13,66 @@
         </option>
       </select>
     </div>
-
-    <div v-if="loading" class="loading">Loading users...</div>
     
-    <div v-else-if="users.length === 0" class="empty-state">
-      <p>No users found in this organization. Add users to get started.</p>
-      <button @click="showCreateModal = true" class="create-btn">Add User</button>
+    <SearchBar 
+      v-model="searchQuery" 
+      placeholder="Search users..." 
+      @search="handleSearch"
+      @clear="handleClearSearch"
+    />
+
+    <ErrorMessage v-if="error" :message="error" @close="error = null" />
+    
+    <LoadingSpinner v-if="loading" message="Loading users..." />
+    
+    <div v-else-if="filteredUsers.length === 0" class="empty-state">
+      <p v-if="searchQuery">No users found matching "{{ searchQuery }}". Try a different search term.</p>
+      <p v-else>No users found in this organization. Create your first user to get started.</p>
+      <button @click="showCreateModal = true" class="create-btn">Create User</button>
     </div>
     
     <div v-else class="users-list">
-      <div v-for="user in users" :key="user.id" class="user-card">
-        <div class="user-info">
-          <h2>{{ user.displayName || user.email }}</h2>
-          <p class="user-email">{{ user.email }}</p>
-          <p class="user-role">Role: {{ user.role || 'User' }}</p>
-        </div>
-        <div class="user-stats">
-          <div class="stat">
-            <span class="stat-label">Agents</span>
-            <span class="stat-value">{{ user.agentsCount || 0 }}</span>
+      <ContentCard 
+        v-for="user in filteredUsers" 
+        :key="user.id"
+        :title="user.name"
+        :subtitle="`ID: ${user.id}`"
+      >
+        <p class="user-email">{{ user.email }}</p>
+        <p v-if="user.description">{{ user.description }}</p>
+        
+        <template #stats>
+          <div class="user-stats">
+            <div class="stat">
+              <span class="stat-label">Agents</span>
+              <span class="stat-value">{{ user.agentsCount || 0 }}</span>
+            </div>
           </div>
-        </div>
-        <div class="user-actions">
+        </template>
+        <template #actions>
           <button @click="manageAgents(user)" class="agents-btn">Manage Agents</button>
           <button @click="editUser(user)" class="edit-btn">Edit</button>
-          <button @click="confirmDelete(user)" class="delete-btn">Remove</button>
-        </div>
-      </div>
+          <button @click="confirmDelete(user)" class="delete-btn">Delete</button>
+        </template>
+      </ContentCard>
     </div>
 
     <!-- Create/Edit Modal -->
     <div v-if="showCreateModal || showEditModal" class="modal-backdrop">
       <div class="modal">
-        <h2>{{ showEditModal ? 'Edit User' : 'Add User' }}</h2>
+        <h2>{{ showEditModal ? 'Edit User' : 'Create User' }}</h2>
         <form @submit.prevent="showEditModal ? updateUser() : createUser()">
+          <div class="form-group">
+            <label for="name">User Name</label>
+            <input 
+              type="text" 
+              id="name" 
+              v-model="formData.name" 
+              required 
+              placeholder="Enter user name"
+            />
+          </div>
+          
           <div class="form-group">
             <label for="email">Email</label>
             <input 
@@ -55,33 +81,42 @@
               v-model="formData.email" 
               required 
               placeholder="Enter user email"
-              :disabled="showEditModal"
             />
           </div>
           
           <div class="form-group">
-            <label for="displayName">Display Name (Optional)</label>
+            <label for="password">Password</label>
             <input 
-              type="text" 
-              id="displayName" 
-              v-model="formData.displayName" 
-              placeholder="Enter display name"
+              type="password" 
+              id="password" 
+              v-model="formData.password" 
+              required 
+              placeholder="Enter user password"
             />
           </div>
           
+          <div class="form-group">
+            <label for="description">Description (Optional)</label>
+            <textarea 
+              id="description" 
+              v-model="formData.description" 
+              placeholder="Enter user description"
+              rows="3"
+            ></textarea>
+          </div>
+
           <div class="form-group">
             <label for="role">Role</label>
-            <select id="role" v-model="formData.role">
-              <option value="admin">Admin</option>
+            <select id="role" v-model="formData.role" required>
               <option value="user">User</option>
-              <option value="viewer">Viewer</option>
+              <option value="admin">Admin</option>
             </select>
           </div>
           
           <div class="modal-actions">
             <button type="button" @click="closeModal" class="cancel-btn">Cancel</button>
             <button type="submit" class="submit-btn">
-              {{ showEditModal ? 'Update' : 'Add' }}
+              {{ showEditModal ? 'Update' : 'Create' }}
             </button>
           </div>
         </form>
@@ -91,77 +126,129 @@
     <!-- Manage Agents Modal -->
     <div v-if="showAgentsModal" class="modal-backdrop">
       <div class="modal">
-        <h2>Manage Agents for {{ selectedUser.displayName || selectedUser.email }}</h2>
+        <h2>Manage Agents for {{ selectedUser.name }}</h2>
         
-        <div v-if="loadingAgents" class="loading-agents">Loading agents...</div>
+        <ErrorMessage v-if="agentsError" :message="agentsError" @close="agentsError = null" />
         
-        <div v-else-if="availableAgents.length === 0" class="empty-agents">
-          No agents available in this organization.
+        <LoadingSpinner v-if="loadingAgents" message="Loading agents..." />
+        
+        <div v-else-if="availableAgents.length === 0" class="empty-state">
+          <p>No agents available in this organization.</p>
         </div>
         
-        <div v-else class="agent-assignments">
-          <div v-for="agent in availableAgents" :key="agent.id" class="agent-assignment-item">
-            <div class="agent-info">
+        <div v-else class="agent-selection">
+          <SearchBar 
+            v-model="agentSearchQuery" 
+            placeholder="Search agents..." 
+            @search="handleAgentSearch"
+            @clear="handleClearAgentSearch"
+            class="agent-search"
+          />
+          
+          <div 
+            v-for="agent in filteredAvailableAgents" 
+            :key="agent.id" 
+            class="agent-item"
+            :class="{ 'selected': isAgentSelected(agent.id) }"
+            @click="toggleAgentSelection(agent.id)"
+          >
+            <div class="agent-details">
               <h3>{{ agent.name }}</h3>
               <p v-if="agent.description">{{ agent.description }}</p>
             </div>
-            <div class="assignment-toggle">
-              <label class="switch">
-                <input 
-                  type="checkbox" 
-                  :checked="isAgentAssigned(agent.id)" 
-                  @change="toggleAgentAssignment(agent.id)"
-                />
-                <span class="slider"></span>
-              </label>
+            <div class="agent-checkbox">
+              <input 
+                type="checkbox" 
+                :checked="isAgentSelected(agent.id)" 
+                @click.stop
+                @change="toggleAgentSelection(agent.id)"
+              />
             </div>
           </div>
         </div>
         
         <div class="modal-actions">
-          <button @click="closeAgentsModal" class="done-btn">Done</button>
+          <button type="button" @click="closeAgentsModal" class="cancel-btn">Cancel</button>
+          <button @click="saveAgentAssignments" class="submit-btn">Save</button>
         </div>
       </div>
     </div>
     
-    <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="modal-backdrop">
-      <div class="modal">
-        <h2>Remove User</h2>
-        <p>Are you sure you want to remove <strong>{{ selectedUser.email }}</strong> from this organization?</p>
-        <p class="warning">This action will remove the user's access to all agents in this organization.</p>
-        
-        <div class="modal-actions">
-          <button @click="showDeleteModal = false" class="cancel-btn">Cancel</button>
-          <button @click="deleteUser" class="delete-btn">Remove</button>
-        </div>
-      </div>
-    </div>
+    <!-- Delete Confirmation Dialog -->
+    <ConfirmDialog
+      v-model="showDeleteModal"
+      title="Delete User"
+      :message="`Are you sure you want to delete ${selectedUser.name}?`"
+      details="This action cannot be undone. All agent assignments for this user will be removed."
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      confirm-type="danger"
+      icon="delete"
+      @confirm="deleteUser"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, inject } from 'vue'
 import { useAuthStore } from '../store/auth'
-import { organizationsApi, agentsApi, usersApi, userAgentApi } from '../services/api'
+import { organizationsApi, usersApi, userAgentApi } from '../services/api'
+import SearchBar from '../components/SearchBar.vue'
+import ContentCard from '../components/ContentCard.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+import LoadingSpinner from '../components/LoadingSpinner.vue'
+import ErrorMessage from '../components/ErrorMessage.vue'
 
+const notify = inject('notify')
 const authStore = useAuthStore()
 const organizations = ref([])
 const users = ref([])
-const availableAgents = ref([])
-const assignedAgentIds = ref([])
-const loading = ref(true)
-const loadingAgents = ref(false)
+const loading = ref(false)
+const error = ref(null)
+const searchQuery = ref('')
 const selectedOrgId = ref('')
-const selectedUser = ref({})
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteModal = ref(false)
 const showAgentsModal = ref(false)
+const selectedUser = ref({})
 const formData = ref({
+  name: '',
   email: '',
-  displayName: '',
-  role: 'user'
+  password: '',
+  description: '',
+  role: 'user' // Default role
+})
+
+// For agent management
+const availableAgents = ref([])
+const loadingAgents = ref(false)
+const agentsError = ref(null)
+const agentSearchQuery = ref('')
+const selectedAgentIds = ref([])
+
+// Filter users based on search query
+const filteredUsers = computed(() => {
+  if (!searchQuery.value) return users.value
+  
+  const query = searchQuery.value.toLowerCase()
+  return users.value.filter(user => 
+    user.name.toLowerCase().includes(query) || 
+    (user.description && user.description.toLowerCase().includes(query)) ||
+    user.email.toLowerCase().includes(query) ||
+    user.id.toLowerCase().includes(query)
+  )
+})
+
+// Filter available agents based on search query
+const filteredAvailableAgents = computed(() => {
+  if (!agentSearchQuery.value) return availableAgents.value
+  
+  const query = agentSearchQuery.value.toLowerCase()
+  return availableAgents.value.filter(agent => 
+    agent.name.toLowerCase().includes(query) || 
+    (agent.description && agent.description.toLowerCase().includes(query))
+  )
 })
 
 onMounted(async () => {
@@ -176,17 +263,14 @@ async function fetchOrganizations() {
   try {
     const response = await organizationsApi.getAll()
     organizations.value = response.data
-    
-    // If user has an organization ID set in auth store, use that
-    if (authStore.organizationId && !selectedOrgId.value) {
-      selectedOrgId.value = authStore.organizationId
-    } 
-    // Otherwise use the first organization if available
-    else if (organizations.value.length > 0 && !selectedOrgId.value) {
-      selectedOrgId.value = organizations.value[0].id
-    }
-  } catch (error) {
-    console.error('Error fetching organizations:', error)
+  } catch (err) {
+    error.value = 'Failed to load organizations. Please try again.'
+    notify({
+      type: 'error',
+      message: 'Failed to load organizations',
+      details: err.message
+    })
+    console.error('Error fetching organizations:', err)
   }
 }
 
@@ -194,114 +278,178 @@ async function fetchUsers() {
   if (!selectedOrgId.value) return
   
   loading.value = true
+  error.value = null
   try {
     const response = await usersApi.getAll(selectedOrgId.value)
     users.value = response.data
-  } catch (error) {
-    console.error('Error fetching users:', error)
+  } catch (err) {
+    error.value = 'Failed to load users. Please try again.'
+    notify({
+      type: 'error',
+      message: 'Failed to load users',
+      details: err.message
+    })
+    console.error('Error fetching users:', err)
   } finally {
     loading.value = false
   }
 }
 
+function handleSearch(query) {
+  searchQuery.value = query
+}
+
+function handleClearSearch() {
+  searchQuery.value = ''
+}
+
+function handleAgentSearch(query) {
+  agentSearchQuery.value = query
+}
+
+function handleClearAgentSearch() {
+  agentSearchQuery.value = ''
+}
+
 function editUser(user) {
   selectedUser.value = user
   formData.value = {
+    name: user.name,
     email: user.email,
-    displayName: user.displayName || '',
+    description: user.description || '',
+    password: '',
     role: user.role || 'user'
   }
   showEditModal.value = true
 }
 
-function confirmDelete(user) {
-  selectedUser.value = user
-  showDeleteModal.value = true
-}
-
 async function manageAgents(user) {
   selectedUser.value = user
-  showAgentsModal.value = true
   loadingAgents.value = true
+  agentsError.value = null
+  agentSearchQuery.value = ''
+  showAgentsModal.value = true
   
   try {
-    // Fetch all agents in the organization
-    const agentsResponse = await agentsApi.getAll(selectedOrgId.value)
-    availableAgents.value = agentsResponse.data
+    // Get all agents for the organization
+    const orgAgentsResponse = await userAgentApi.getAgentsByOrganization(selectedOrgId.value)
+    availableAgents.value = orgAgentsResponse.data
     
-    // Fetch agents assigned to this user
+    // Get user's assigned agents
     const userAgentsResponse = await userAgentApi.getUserAgents(user.id)
-    assignedAgentIds.value = userAgentsResponse.data.map(agent => agent.id)
-  } catch (error) {
-    console.error('Error fetching agents:', error)
+    selectedAgentIds.value = userAgentsResponse.data.map(ua => ua.agentId)
+  } catch (err) {
+    agentsError.value = 'Failed to load agents. Please try again.'
+    notify({
+      type: 'error',
+      message: 'Failed to load agents',
+      details: err.message
+    })
+    console.error('Error loading agents:', err)
   } finally {
     loadingAgents.value = false
   }
 }
 
-function isAgentAssigned(agentId) {
-  return assignedAgentIds.value.includes(agentId)
+function isAgentSelected(agentId) {
+  return selectedAgentIds.value.includes(agentId)
 }
 
-async function toggleAgentAssignment(agentId) {
-  const isAssigned = isAgentAssigned(agentId)
-  
+function toggleAgentSelection(agentId) {
+  if (isAgentSelected(agentId)) {
+    selectedAgentIds.value = selectedAgentIds.value.filter(id => id !== agentId)
+  } else {
+    selectedAgentIds.value.push(agentId)
+  }
+}
+
+async function saveAgentAssignments() {
   try {
-    if (isAssigned) {
-      // Remove agent assignment
-      await userAgentApi.removeUserFromAgent(selectedUser.value.id, agentId)
-      assignedAgentIds.value = assignedAgentIds.value.filter(id => id !== agentId)
-    } else {
-      // Add agent assignment
-      await userAgentApi.assignUserToAgent(selectedUser.value.id, agentId)
-      assignedAgentIds.value.push(agentId)
-    }
-  } catch (error) {
-    console.error('Error updating agent assignment:', error)
-    // Revert the UI change if the API call fails
-    if (!isAssigned) {
-      assignedAgentIds.value = assignedAgentIds.value.filter(id => id !== agentId)
-    } else {
-      assignedAgentIds.value.push(agentId)
-    }
+    await userAgentApi.updateUserAgents(selectedUser.value.id, selectedAgentIds.value)
+    notify({
+      type: 'success',
+      message: 'Agent assignments updated successfully'
+    })
+    closeAgentsModal()
+  } catch (err) {
+    notify({
+      type: 'error',
+      message: 'Failed to update agent assignments',
+      details: err.message
+    })
+    console.error('Error updating agent assignments:', err)
   }
 }
 
 async function createUser() {
-  if (!selectedOrgId.value) {
-    alert('Please select an organization first')
-    return
-  }
-  
   try {
-    await usersApi.create(selectedOrgId.value, formData.value)
+    const payload = {
+      name: formData.value.name,
+      email: formData.value.email,
+      password: formData.value.password,
+      description: formData.value.description,
+      role: formData.value.role,
+      organizationId: selectedOrgId.value
+    }
+    
+    await usersApi.create(payload)
     await fetchUsers()
+    notify({
+      type: 'success',
+      message: 'User created successfully'
+    })
     closeModal()
-  } catch (error) {
-    console.error('Error creating user:', error)
-    alert('Error creating user: ' + error.message)
+  } catch (err) {
+    notify({
+      type: 'error',
+      message: 'Failed to create user',
+      details: err.message
+    })
+    console.error('Error creating user:', err)
   }
 }
 
 async function updateUser() {
   try {
-    await usersApi.update(selectedOrgId.value, selectedUser.value.id, formData.value)
+    const payload = {
+      name: formData.value.name,
+      email: formData.value.email,
+      description: formData.value.description
+    }
+    
+    await usersApi.update(selectedUser.value.id, payload)
     await fetchUsers()
+    notify({
+      type: 'success',
+      message: 'User updated successfully'
+    })
     closeModal()
-  } catch (error) {
-    console.error('Error updating user:', error)
-    alert('Error updating user: ' + error.message)
+  } catch (err) {
+    notify({
+      type: 'error',
+      message: 'Failed to update user',
+      details: err.message
+    })
+    console.error('Error updating user:', err)
   }
 }
 
 async function deleteUser() {
   try {
-    await usersApi.delete(selectedOrgId.value, selectedUser.value.id)
+    await usersApi.delete(selectedUser.value.id)
     await fetchUsers()
+    notify({
+      type: 'success',
+      message: 'User deleted successfully'
+    })
     showDeleteModal.value = false
-  } catch (error) {
-    console.error('Error deleting user:', error)
-    alert('Error removing user: ' + error.message)
+  } catch (err) {
+    notify({
+      type: 'error',
+      message: 'Failed to delete user',
+      details: err.message
+    })
+    console.error('Error deleting user:', err)
   }
 }
 
