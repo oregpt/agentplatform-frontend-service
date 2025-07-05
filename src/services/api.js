@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getAuth } from 'firebase/auth'
 
 // Get API base URL from environment variables or use default
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
@@ -97,7 +98,6 @@ api.interceptors.response.use(
         console.warn('Unauthorized API request - token may be invalid')
         
         // Get Firebase auth instance
-        const { getAuth } = require('firebase/auth')
         const auth = getAuth()
         
         // Check if user is still logged in with Firebase
