@@ -9,7 +9,13 @@ import notificationPlugin from './plugins/notifications'
 import './assets/main.css'
 
 // Initialize Firebase
-initializeFirebase()
+console.log('About to initialize Firebase in main.js')
+try {
+  initializeFirebase()
+  console.log('Firebase initialization completed in main.js')
+} catch (error) {
+  console.error('Failed to initialize Firebase in main.js:', error)
+}
 
 // Create the app
 const app = createApp(App)
