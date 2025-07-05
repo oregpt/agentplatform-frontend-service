@@ -15,7 +15,8 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(null)
   const loading = ref(true)
   const error = ref(null)
-  const organizationId = ref('default-org') // Default organization ID
+  const organizationId = ref(null) // Will be set after fetching user's organizations
+  const userOrganizations = ref([]) // List of organizations user has access to
   
   const isAuthenticated = computed(() => !!user.value)
   
@@ -114,6 +115,9 @@ export const useAuthStore = defineStore('auth', () => {
               
               // Store token in localStorage for API interceptor
               localStorage.setItem('authToken', customJwt)
+              
+              // Fetch user's organizations after successful login
+              fetchUserOrganizations()
               
             } catch (jwtError) {
               console.error('Error getting custom JWT:', jwtError)
@@ -236,16 +240,91 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
   
+  // Fetch organizations the user has access to
+  async function fetchUserOrganizations() {
+    try {
+      if (!user.value) return
+      
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+      const response = await axios.get(`${apiBaseUrl}/organizations`, {
+        headers: {
+          'Authorization': `Bearer ${token.value}`
+        }
+      })
+      
+      userOrganizations.value = response.data.organizations || []
+      console.log('User organizations loaded:', userOrganizations.value.length)
+      
+      // If we have organizations and no current selection, select the first one
+      if (userOrganizations.value.length > 0 && !organizationId.value) {
+        setOrganization(userOrganizations.value[0].ID)
+      }
+    } catch (err) {
+      console.error('Failed to fetch user organizations:', err)
+      userOrganizations.value = []
+    }
+  }
+  
+  // Set the current organization
+  async function setOrganization(orgId) {
+    console.log('Setting active organization:', orgId)
+    organizationId.value = orgId
+    localStorage.setItem('selectedOrganizationId', orgId)
+    
+    // Special handling for 'all' option
+    const effectiveOrgId = orgId === 'all' ? '' : orgId
+    
+    // Refresh token with new organization ID
+    if (user.value) {
+      try {
+        // Get a fresh Firebase token
+        const auth = getFirebaseAuth()
+        const firebaseUser = auth.currentUser
+        const firebaseIdToken = await firebaseUser.getIdToken(true)
+        
+        // Exchange it for a fresh custom JWT with the new organization ID
+        const authApiUrl = import.meta.env.VITE_AUTH_API_URL
+        const response = await axios.post(`${authApiUrl}/api/v1/auth/generate-jwt`, {
+          firebase_token: firebaseIdToken,
+          organization_id: effectiveOrgId
+        })
+        
+        // Update token
+        const customJwt = response.data.token
+        token.value = customJwt
+        localStorage.setItem('authToken', customJwt)
+        
+        // Refresh user organizations
+        await fetchUserOrganizations()
+        
+        return true
+      } catch (error) {
+        console.error('Failed to update organization token:', error)
+        return false
+      }
+    }
+    return true
+  }
+  
+  // Initialize from localStorage if available
+  const storedOrgId = localStorage.getItem('selectedOrganizationId')
+  if (storedOrgId) {
+    organizationId.value = storedOrgId
+  }
+  
   return {
     user,
     token,
     loading,
     error,
     organizationId,
+    userOrganizations,
     isAuthenticated,
     init,
     login,
     loginWithGoogle,
-    logout
+    logout,
+    fetchUserOrganizations,
+    setOrganization
   }
 })
