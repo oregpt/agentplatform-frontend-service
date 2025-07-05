@@ -85,16 +85,25 @@ const router = createRouter({
 
 // Global authentication state
 let currentUser = null
+let authInitialized = false
 const auth = getFirebaseAuth()
 
 // Set up auth state listener once
 onAuthStateChanged(auth, (user) => {
   currentUser = user
+  authInitialized = true
   console.log('Auth state changed:', user ? 'logged in' : 'logged out')
+  console.log('Current user updated:', currentUser ? currentUser.email : 'null')
 })
 
 // Navigation guard
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
+  // Wait for a short time to ensure auth state is initialized if needed
+  if (!authInitialized) {
+    console.log('Waiting for auth state to initialize...')
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }
+
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   
   // For login page, redirect to dashboard if already logged in
@@ -108,6 +117,7 @@ router.beforeEach((to, from, next) => {
     console.log('Auth required but not logged in, redirecting to login')
     next('/login')
   } else {
+    console.log(`Navigating to ${to.path}, auth state: ${currentUser ? 'authenticated' : 'not authenticated'}`)
     next()
   }
 })
