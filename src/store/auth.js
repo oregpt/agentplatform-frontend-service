@@ -15,7 +15,7 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(null)
   const loading = ref(true)
   const error = ref(null)
-  const organizationId = ref(null)
+  const organizationId = ref('default-org') // Default organization ID
   
   const isAuthenticated = computed(() => !!user.value)
   
@@ -56,46 +56,72 @@ export const useAuthStore = defineStore('auth', () => {
             photoURL: firebaseUser.photoURL 
           }
           
-          // Get fresh token
-          // Getting ID token
-          console.log('Fetching fresh ID token')
+          // Get Firebase ID token first
+          console.log('Fetching fresh Firebase ID token')
           try {
-            const idToken = await firebaseUser.getIdToken(true)
-            token.value = idToken
+            const firebaseIdToken = await firebaseUser.getIdToken(true)
             
-            // Decode token to check expiration
-            const tokenData = JSON.parse(atob(idToken.split('.')[1]))
-            const expirationTime = tokenData.exp * 1000 // Convert to milliseconds
-            const currentTime = Date.now()
-            const timeRemaining = expirationTime - currentTime
+            // Now exchange the Firebase token for a custom JWT with organization ID
+            console.log('Exchanging Firebase token for custom JWT with organization ID')
+            const authApiUrl = import.meta.env.VITE_AUTH_API_URL
             
-            console.log(`Token obtained successfully. Expires in ${Math.floor(timeRemaining / 60000)} minutes`)
-            
-            // Set up token refresh - refresh 5 minutes before expiration
-            if (tokenRefreshInterval) {
-              clearInterval(tokenRefreshInterval)
-            }
-            
-            const refreshTime = Math.max(timeRemaining - (5 * 60 * 1000), 60000) // 5 minutes before expiry or 1 minute minimum
-            console.log(`Setting token refresh in ${Math.floor(refreshTime / 60000)} minutes`)
-            
-            tokenRefreshInterval = setInterval(async () => {
-              console.log('Refreshing Firebase ID token')
-              try {
-                const freshToken = await firebaseUser.getIdToken(true)
-                token.value = freshToken
-                axios.defaults.headers.common['Authorization'] = `Bearer ${freshToken}`
-                console.log('Token refreshed successfully')
-              } catch (refreshError) {
-                console.error('Error refreshing token:', refreshError)
+            try {
+              const response = await axios.post(`${authApiUrl}/api/v1/auth/generate-jwt`, {
+                firebase_token: firebaseIdToken,
+                organization_id: organizationId.value
+              })
+              
+              // Get the custom JWT with organization ID
+              const customJwt = response.data.token
+              const expiresIn = response.data.expires_in
+              
+              token.value = customJwt
+              
+              console.log(`Custom JWT obtained successfully. Expires in ${Math.floor(expiresIn / 60)} minutes`)
+              
+              // Set up token refresh - refresh 5 minutes before expiration
+              if (tokenRefreshInterval) {
+                clearInterval(tokenRefreshInterval)
               }
-            }, refreshTime)
-            
-            // Set authorization header
-            axios.defaults.headers.common['Authorization'] = `Bearer ${idToken}`
-            
-            // Store token in localStorage for API interceptor
-            localStorage.setItem('authToken', idToken)
+              
+              const refreshTime = Math.max((expiresIn * 1000) - (5 * 60 * 1000), 60000) // 5 minutes before expiry or 1 minute minimum
+              console.log(`Setting token refresh in ${Math.floor(refreshTime / 60000)} minutes`)
+              
+              tokenRefreshInterval = setInterval(async () => {
+                console.log('Refreshing custom JWT token')
+                try {
+                  // Get a fresh Firebase token
+                  const freshFirebaseToken = await firebaseUser.getIdToken(true)
+                  
+                  // Exchange it for a fresh custom JWT
+                  const refreshResponse = await axios.post(`${authApiUrl}/api/v1/auth/generate-jwt`, {
+                    firebase_token: freshFirebaseToken,
+                    organization_id: organizationId.value
+                  })
+                  
+                  const freshCustomJwt = refreshResponse.data.token
+                  token.value = freshCustomJwt
+                  axios.defaults.headers.common['Authorization'] = `Bearer ${freshCustomJwt}`
+                  localStorage.setItem('authToken', freshCustomJwt)
+                  console.log('Custom JWT refreshed successfully')
+                } catch (refreshError) {
+                  console.error('Error refreshing custom JWT:', refreshError)
+                }
+              }, refreshTime)
+              
+              // Set authorization header with the custom JWT
+              axios.defaults.headers.common['Authorization'] = `Bearer ${customJwt}`
+              
+              // Store token in localStorage for API interceptor
+              localStorage.setItem('authToken', customJwt)
+              
+            } catch (jwtError) {
+              console.error('Error getting custom JWT:', jwtError)
+              // Fall back to using Firebase token directly (this will cause 401 errors but prevents total failure)
+              token.value = firebaseIdToken
+              axios.defaults.headers.common['Authorization'] = `Bearer ${firebaseIdToken}`
+              localStorage.setItem('authToken', firebaseIdToken)
+            }
             
           } catch (tokenError) {
             console.error('Error getting ID token:', tokenError)
@@ -158,7 +184,7 @@ export const useAuthStore = defineStore('auth', () => {
   
   // Login with Google
   async function loginWithGoogle() {
-    debugger; // BREAKPOINT: Starting Google login
+    // Starting Google login
     const auth = getFirebaseAuth()
     loading.value = true
     error.value = null
