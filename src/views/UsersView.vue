@@ -462,16 +462,20 @@ async function updateUser() {
     const payload = {
       name: formData.value.name,
       email: formData.value.email,
-      description: formData.value.description
+      description: formData.value.description,
+      role: formData.value.role,
+      organizationId: formData.value.organizationId || selectedOrgId.value
     }
     
+    console.log('Updating user:', selectedUser.value.id, payload)
     await usersApi.update(selectedUser.value.id, payload)
-    await fetchUsers()
     notify({
       type: 'success',
       message: 'User updated successfully'
     })
     closeModal()
+    // Fetch users after successful update
+    await fetchUsers()
   } catch (err) {
     notify({
       type: 'error',
@@ -484,13 +488,15 @@ async function updateUser() {
 
 async function deleteUser() {
   try {
+    console.log('Deleting user:', selectedUser.value.id)
     await usersApi.delete(selectedUser.value.id)
-    await fetchUsers()
     notify({
       type: 'success',
       message: 'User deleted successfully'
     })
     showDeleteModal.value = false
+    // Fetch users after successful deletion
+    await fetchUsers()
   } catch (err) {
     notify({
       type: 'error',

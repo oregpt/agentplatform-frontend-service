@@ -308,13 +308,15 @@ function confirmDelete(agent) {
 async function deleteAgent() {
   try {
     loading.value = true
+    console.log('Deleting agent:', selectedAgent.value.id)
     await agentsApi.delete(selectedAgent.value.id)
-    await fetchAgents()
     showDeleteModal.value = false
     notify({
       type: 'success',
       message: `Agent "${selectedAgent.value.name}" deleted successfully`
     })
+    // Fetch agents after successful deletion
+    await fetchAgents()
   } catch (err) {
     notify({
       type: 'error',
@@ -376,8 +378,9 @@ async function createAgent() {
 async function updateAgent() {
   try {
     // Validate JSON metadata
+    let parsedMetadata;
     try {
-      JSON.parse(formData.value.metadata)
+      parsedMetadata = JSON.parse(formData.value.metadata || '{}')
     } catch (e) {
       notify({
         type: 'error',
@@ -390,9 +393,11 @@ async function updateAgent() {
     const agentData = {
       name: formData.value.name,
       description: formData.value.description,
-      metadata: JSON.parse(formData.value.metadata)
+      organizationId: formData.value.organizationId || selectedOrgId.value,
+      metadata: parsedMetadata
     }
 
+    console.log('Updating agent:', selectedAgent.value.id, agentData)
     await agentsApi.update(selectedAgent.value.id, agentData)
     
     // Upload files if any are selected

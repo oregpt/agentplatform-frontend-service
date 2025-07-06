@@ -269,33 +269,41 @@ async function createOrganization() {
 
 async function updateOrganization() {
   try {
+    console.log('Updating organization:', selectedOrg.value.id, formData.value)
     await organizationsApi.update(selectedOrg.value.id, formData.value)
-    if (notify) {
-      notify.success('Organization updated successfully')
-    }
+    notify({
+      type: 'success',
+      message: 'Organization updated successfully'
+    })
     closeModal()
     await fetchOrganizations()
   } catch (err) {
     console.error('Error updating organization:', err)
-    if (notify) {
-      notify.error('Failed to update organization')
-    }
+    notify({
+      type: 'error',
+      message: 'Failed to update organization',
+      details: err.message
+    })
   }
 }
 
 async function deleteOrganization() {
   try {
+    console.log('Deleting organization:', selectedOrg.value.id)
     await organizationsApi.delete(selectedOrg.value.id)
-    if (notify) {
-      notify.success('Organization deleted successfully')
-    }
+    notify({
+      type: 'success',
+      message: 'Organization deleted successfully'
+    })
     showDeleteModal.value = false
     await fetchOrganizations()
   } catch (err) {
     console.error('Error deleting organization:', err)
-    if (notify) {
-      notify.error('Failed to delete organization')
-    }
+    notify({
+      type: 'error',
+      message: 'Failed to delete organization',
+      details: err.message
+    })
   }
 }
 
