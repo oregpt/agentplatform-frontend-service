@@ -532,7 +532,7 @@ async function updateAgent() {
       metadata: JSON.parse(formData.value.metadata)
     }
 
-    await agentsApi.update(agentData)
+    await agentsApi.update(selectedAgent.value.id, agentData)
     await fetchAgents()
     showEditModal.value = false
     
