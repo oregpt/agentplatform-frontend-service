@@ -267,20 +267,28 @@ async function createOrganization() {
   }
 }
 
-// Updated to fix notification handling
 async function updateOrganization() {
   try {
     console.log('Updating organization:', selectedOrg.value.id, formData.value)
     await organizationsApi.update(selectedOrg.value.id, formData.value)
     
-    // Check if notify is a function or an object with methods
-    if (typeof notify === 'function') {
-      notify({
-        type: 'success',
-        message: 'Organization updated successfully'
-      })
-    } else if (notify && typeof notify.success === 'function') {
-      notify.success('Organization updated successfully')
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'success',
+          message: 'Organization updated successfully'
+        })
+      } else if (notify && typeof notify.success === 'function') {
+        notify.success('Organization updated successfully')
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'success',
+          message: 'Organization updated successfully'
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing success notification:', notifyErr)
     }
     
     closeModal()
@@ -288,15 +296,24 @@ async function updateOrganization() {
   } catch (err) {
     console.error('Error updating organization:', err)
     
-    // Check if notify is a function or an object with methods
-    if (typeof notify === 'function') {
-      notify({
-        type: 'error',
-        message: 'Failed to update organization',
-        details: err.message
-      })
-    } else if (notify && typeof notify.error === 'function') {
-      notify.error(`Failed to update organization: ${err.message || 'Unknown error'}`)
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'error',
+          message: 'Failed to update organization',
+          details: err.message
+        })
+      } else if (notify && typeof notify.error === 'function') {
+        notify.error(`Failed to update organization: ${err.message || 'Unknown error'}`)
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'error',
+          message: 'Failed to update organization: ' + (err.message || 'Unknown error')
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing error notification:', notifyErr)
     }
   }
 }
@@ -306,13 +323,23 @@ async function deleteOrganization() {
     console.log('Deleting organization:', selectedOrg.value.id)
     await organizationsApi.delete(selectedOrg.value.id)
     
-    if (typeof notify === 'function') {
-      notify({
-        type: 'success',
-        message: 'Organization deleted successfully'
-      })
-    } else if (notify && typeof notify.success === 'function') {
-      notify.success('Organization deleted successfully')
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'success',
+          message: 'Organization deleted successfully'
+        })
+      } else if (notify && typeof notify.success === 'function') {
+        notify.success('Organization deleted successfully')
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'success',
+          message: 'Organization deleted successfully'
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing success notification:', notifyErr)
     }
     
     showDeleteModal.value = false
@@ -320,14 +347,24 @@ async function deleteOrganization() {
   } catch (err) {
     console.error('Error deleting organization:', err)
     
-    if (typeof notify === 'function') {
-      notify({
-        type: 'error',
-        message: 'Failed to delete organization',
-        details: err.message
-      })
-    } else if (notify && typeof notify.error === 'function') {
-      notify.error(`Failed to delete organization: ${err.message || 'Unknown error'}`)
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'error',
+          message: 'Failed to delete organization',
+          details: err.message
+        })
+      } else if (notify && typeof notify.error === 'function') {
+        notify.error(`Failed to delete organization: ${err.message || 'Unknown error'}`)
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'error',
+          message: 'Failed to delete organization: ' + (err.message || 'Unknown error')
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing error notification:', notifyErr)
     }
   }
 }

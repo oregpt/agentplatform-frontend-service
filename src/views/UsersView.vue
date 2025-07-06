@@ -457,7 +457,7 @@ async function createUser() {
   }
 }
 
-// Updated to fix notification handling
+// Updated to fix notification handling with addNotification support
 async function updateUser() {
   try {
     const payload = {
@@ -471,29 +471,50 @@ async function updateUser() {
     console.log('Updating user:', selectedUser.value.id, payload)
     await usersApi.update(selectedUser.value.id, payload)
     
-    if (typeof notify === 'function') {
-      notify({
-        type: 'success',
-        message: 'User updated successfully'
-      })
-    } else if (notify && typeof notify.success === 'function') {
-      notify.success('User updated successfully')
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'success',
+          message: 'User updated successfully'
+        })
+      } else if (notify && typeof notify.success === 'function') {
+        notify.success('User updated successfully')
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'success',
+          message: 'User updated successfully'
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing success notification:', notifyErr)
     }
     
     closeModal()
     // Fetch users after successful update
     await fetchUsers()
   } catch (err) {
-    if (typeof notify === 'function') {
-      notify({
-        type: 'error',
-        message: 'Failed to update user',
-        details: err.message
-      })
-    } else if (notify && typeof notify.error === 'function') {
-      notify.error(`Failed to update user: ${err.message || 'Unknown error'}`)
-    }
     console.error('Error updating user:', err)
+    
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'error',
+          message: 'Failed to update user',
+          details: err.message
+        })
+      } else if (notify && typeof notify.error === 'function') {
+        notify.error(`Failed to update user: ${err.message || 'Unknown error'}`)
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'error',
+          message: 'Failed to update user: ' + (err.message || 'Unknown error')
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing error notification:', notifyErr)
+    }
   }
 }
 
@@ -502,29 +523,50 @@ async function deleteUser() {
     console.log('Deleting user:', selectedUser.value.id)
     await usersApi.delete(selectedUser.value.id)
     
-    if (typeof notify === 'function') {
-      notify({
-        type: 'success',
-        message: 'User deleted successfully'
-      })
-    } else if (notify && typeof notify.success === 'function') {
-      notify.success('User deleted successfully')
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'success',
+          message: 'User deleted successfully'
+        })
+      } else if (notify && typeof notify.success === 'function') {
+        notify.success('User deleted successfully')
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'success',
+          message: 'User deleted successfully'
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing success notification:', notifyErr)
     }
     
     showDeleteModal.value = false
     // Fetch users after successful deletion
     await fetchUsers()
   } catch (err) {
-    if (typeof notify === 'function') {
-      notify({
-        type: 'error',
-        message: 'Failed to delete user',
-        details: err.message
-      })
-    } else if (notify && typeof notify.error === 'function') {
-      notify.error(`Failed to delete user: ${err.message || 'Unknown error'}`)
-    }
     console.error('Error deleting user:', err)
+    
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'error',
+          message: 'Failed to delete user',
+          details: err.message
+        })
+      } else if (notify && typeof notify.error === 'function') {
+        notify.error(`Failed to delete user: ${err.message || 'Unknown error'}`)
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'error',
+          message: 'Failed to delete user: ' + (err.message || 'Unknown error')
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing error notification:', notifyErr)
+    }
   }
 }
 

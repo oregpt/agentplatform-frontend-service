@@ -307,31 +307,50 @@ function confirmDelete(agent) {
 
 async function deleteAgent() {
   try {
-    loading.value = true
     console.log('Deleting agent:', selectedAgent.value.id)
     await agentsApi.delete(selectedAgent.value.id)
-    showDeleteModal.value = false
     
-    if (typeof notify === 'function') {
-      notify({
-        type: 'success',
-        message: `Agent "${selectedAgent.value.name}" deleted successfully`
-      })
-    } else if (notify && typeof notify.success === 'function') {
-      notify.success(`Agent "${selectedAgent.value.name}" deleted successfully`)
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'success',
+          message: 'Agent deleted successfully'
+        })
+      } else if (notify && typeof notify.success === 'function') {
+        notify.success('Agent deleted successfully')
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'success',
+          message: 'Agent deleted successfully'
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing success notification:', notifyErr)
     }
     
+    showDeleteModal.value = false
     // Fetch agents after successful deletion
     await fetchAgents()
   } catch (err) {
-    if (typeof notify === 'function') {
-      notify({
-        type: 'error',
-        message: 'Failed to delete agent',
-        details: err.message
-      })
-    } else if (notify && typeof notify.error === 'function') {
-      notify.error(`Failed to delete agent: ${err.message || 'Unknown error'}`)
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'error',
+          message: 'Failed to delete agent',
+          details: err.message
+        })
+      } else if (notify && typeof notify.error === 'function') {
+        notify.error(`Failed to delete agent: ${err.message || 'Unknown error'}`)
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'error',
+          message: 'Failed to delete agent: ' + (err.message || 'Unknown error')
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing error notification:', notifyErr)
     }
     console.error('Error deleting agent:', err)
   } finally {
@@ -385,7 +404,7 @@ async function createAgent() {
   }
 }
 
-// Updated to fix notification handling
+// Updated to fix notification handling and include required fields
 async function updateAgent() {
   try {
     // Validate JSON metadata
@@ -393,23 +412,36 @@ async function updateAgent() {
     try {
       parsedMetadata = JSON.parse(formData.value.metadata || '{}')
     } catch (e) {
-      if (typeof notify === 'function') {
-        notify({
-          type: 'error',
-          message: 'Invalid JSON metadata format',
-          details: e.message
-        })
-      } else if (notify && typeof notify.error === 'function') {
-        notify.error(`Invalid JSON metadata format: ${e.message}`)
+      try {
+        // Try different notification methods
+        if (typeof notify === 'function') {
+          notify({
+            type: 'error',
+            message: 'Invalid JSON metadata format',
+            details: e.message
+          })
+        } else if (notify && typeof notify.error === 'function') {
+          notify.error(`Invalid JSON metadata format: ${e.message}`)
+        } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+          notify.value.addNotification({
+            type: 'error',
+            message: 'Invalid JSON metadata format: ' + e.message
+          })
+        }
+      } catch (notifyErr) {
+        console.error('Error showing notification:', notifyErr)
       }
       return
     }
 
+    // Include all required fields, especially AIProvider
     const agentData = {
       name: formData.value.name,
       description: formData.value.description,
       organizationId: formData.value.organizationId || selectedOrgId.value,
-      metadata: parsedMetadata
+      metadata: parsedMetadata,
+      // Include AIProvider from the original agent data
+      aiProvider: selectedAgent.value.aiProvider || 'openai'
     }
 
     console.log('Updating agent:', selectedAgent.value.id, agentData)
@@ -422,25 +454,45 @@ async function updateAgent() {
     
     showEditModal.value = false
     
-    if (typeof notify === 'function') {
-      notify({
-        type: 'success',
-        message: 'Agent updated successfully'
-      })
-    } else if (notify && typeof notify.success === 'function') {
-      notify.success('Agent updated successfully')
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'success',
+          message: 'Agent updated successfully'
+        })
+      } else if (notify && typeof notify.success === 'function') {
+        notify.success('Agent updated successfully')
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'success',
+          message: 'Agent updated successfully'
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing success notification:', notifyErr)
     }
     
     await fetchAgents()
   } catch (err) {
-    if (typeof notify === 'function') {
-      notify({
-        type: 'error',
-        message: 'Failed to update agent',
-        details: err.message
-      })
-    } else if (notify && typeof notify.error === 'function') {
-      notify.error(`Failed to update agent: ${err.message || 'Unknown error'}`)
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'error',
+          message: 'Failed to update agent',
+          details: err.message
+        })
+      } else if (notify && typeof notify.error === 'function') {
+        notify.error(`Failed to update agent: ${err.message || 'Unknown error'}`)
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'error',
+          message: 'Failed to update agent: ' + (err.message || 'Unknown error')
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing error notification:', notifyErr)
     }
     console.error('Error updating agent:', err)
   }
