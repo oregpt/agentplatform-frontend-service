@@ -214,26 +214,59 @@ async function fetchAgents() {
   try {
     loading.value = true
     error.value = ''
-    console.log('Fetching agents')
-    const response = await agentsApi.getAll()
+    console.log('Fetching agents for organization:', selectedOrgId.value)
+    const response = await agentsApi.getAll(selectedOrgId.value)
     console.log('Agents API response:', response)
     
     // Check if response has the expected structure
-    if (response && response.data && response.data.agents) {
-      // Filter agents by the selected organization if one is selected
-      if (selectedOrgId.value) {
-        agents.value = response.data.agents.filter(agent => agent.organizationId === selectedOrgId.value)
-      } else {
-        agents.value = response.data.agents
+    if (response && response.data) {
+      // Extract agents from the response
+      let agentsList = [];
+      if (Array.isArray(response.data.agents)) {
+        agentsList = response.data.agents;
+      } else if (Array.isArray(response.data)) {
+        agentsList = response.data;
       }
-      console.log('Agents loaded:', agents.value)
+      
+      // For each agent, fetch file and user counts
+      const agentsWithCounts = await Promise.all(agentsList.map(async (agent) => {
+        try {
+          // Fetch files count for this agent
+          const filesResponse = await filesApi.getAllByAgent(agent.id);
+          const filesCount = Array.isArray(filesResponse.data.files) ? 
+                           filesResponse.data.files.length : 
+                           (Array.isArray(filesResponse.data) ? filesResponse.data.length : 0);
+          
+          // For user count, we would need an API endpoint to get users by agent
+          // Since we don't have that directly, we'll set it to 0 for now
+          // In a real implementation, you would fetch this data from an appropriate endpoint
+          
+          return {
+            ...agent,
+            filesCount,
+            usersCount: 0 // This would be replaced with actual user count if available
+          };
+        } catch (err) {
+          console.error(`Error fetching counts for agent ${agent.id}:`, err);
+          return {
+            ...agent,
+            filesCount: 0,
+            usersCount: 0
+          };
+        }
+      }));
+      
+      agents.value = agentsWithCounts;
+      console.log('Agents loaded with counts:', agents.value);
     } else {
       console.error('Unexpected API response format:', response)
       error.value = 'Unexpected API response format'
+      agents.value = [];
     }
   } catch (err) {
     console.error('Error fetching agents:', err)
     error.value = `Failed to load agents: ${err.message || 'Unknown error'}`
+    agents.value = [];
   } finally {
     loading.value = false
   }
