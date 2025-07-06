@@ -169,6 +169,7 @@ onMounted(async () => {
   await fetchOrganizations()
 })
 
+// Fetch organizations with agent and user counts
 async function fetchOrganizations() {
   try {
     loading.value = true
