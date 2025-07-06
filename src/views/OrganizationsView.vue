@@ -254,15 +254,49 @@ function confirmDelete(org) {
 async function createOrganization() {
   try {
     await organizationsApi.create(formData.value)
-    if (notify) {
-      notify.success('Organization created successfully')
+    
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'success',
+          message: 'Organization created successfully'
+        })
+      } else if (notify && typeof notify.success === 'function') {
+        notify.success('Organization created successfully')
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'success',
+          message: 'Organization created successfully'
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing success notification:', notifyErr)
     }
+    
     closeModal()
     await fetchOrganizations()
   } catch (err) {
     console.error('Error creating organization:', err)
-    if (notify) {
-      notify.error('Failed to create organization')
+    
+    try {
+      // Try different notification methods
+      if (typeof notify === 'function') {
+        notify({
+          type: 'error',
+          message: 'Failed to create organization',
+          details: err.message
+        })
+      } else if (notify && typeof notify.error === 'function') {
+        notify.error(`Failed to create organization: ${err.message || 'Unknown error'}`)
+      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+        notify.value.addNotification({
+          type: 'error',
+          message: 'Failed to create organization: ' + (err.message || 'Unknown error')
+        })
+      }
+    } catch (notifyErr) {
+      console.error('Error showing error notification:', notifyErr)
     }
   }
 }
