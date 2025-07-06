@@ -18,7 +18,6 @@
           <button @click="openEditModal()" class="edit-btn">Edit Agent</button>
           <button @click="confirmDelete(agent)" class="delete-btn">Delete Agent</button>
           <router-link :to="`/agents/${agent.id}/files`" class="files-btn">Manage Files</router-link>
-          <button @click="showUserModal = true" class="users-btn">Manage Users</button>
         </div>
       </div>
       
@@ -63,6 +62,7 @@
         <div class="agent-users-card">
           <div class="card-header">
             <h2>Assigned Users</h2>
+            <button @click="openAddUserModal" class="add-user-btn">+ Add User</button>
           </div>
           
           <div v-if="users.length === 0" class="empty-users">
@@ -77,10 +77,35 @@
                 <span class="user-role">{{ user.role || 'User' }}</span>
               </div>
               <button @click="removeUser(user)" class="remove-user-btn">
-                Remove
+                <span class="remove-icon">×</span> Remove
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Add User Modal -->
+    <div v-if="showAddUserModal" class="modal-backdrop">
+      <div class="modal">
+        <h2>Add User to Agent</h2>
+        <div v-if="loadingAvailableUsers" class="loading">Loading users...</div>
+        <div v-else>
+          <div class="user-list">
+            <div v-if="availableUsers.length === 0" class="empty-users">
+              No available users to add.
+            </div>
+            <div v-for="user in availableUsers" :key="user.id" class="user-item">
+              <div class="user-info">
+                <h3>{{ user.displayName || user.email }}</h3>
+                <p class="user-email">{{ user.email }}</p>
+              </div>
+              <button @click="addUser(user)" class="add-btn">Add User</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button @click="closeAddUserModal" class="cancel-btn">Close</button>
         </div>
       </div>
     </div>
@@ -156,42 +181,7 @@
       </div>
     </div>
     
-    <!-- Manage Users Modal -->
-    <div v-if="showUserModal" class="modal-backdrop">
-      <div class="modal">
-        <h2>Manage Users for {{ agent.name }}</h2>
-        
-        <div v-if="loadingUsers" class="loading-users">Loading users...</div>
-        
-        <div v-else-if="availableUsers.length === 0" class="empty-users-list">
-          No users available in this organization.
-        </div>
-        
-        <div v-else class="user-assignments">
-          <div v-for="user in availableUsers" :key="user.id" class="user-assignment-item">
-            <div class="user-info">
-              <h3>{{ user.displayName || user.email }}</h3>
-              <p class="user-email">{{ user.email }}</p>
-              <span class="user-role">{{ user.role || 'User' }}</span>
-            </div>
-            <div class="assignment-toggle">
-              <label class="switch">
-                <input 
-                  type="checkbox" 
-                  :checked="isUserAssigned(user.id)" 
-                  @change="toggleUserAssignment(user)"
-                />
-                <span class="slider"></span>
-              </label>
-            </div>
-          </div>
-        </div>
-        
-        <div class="modal-actions">
-          <button @click="closeUserModal" class="done-btn">Done</button>
-        </div>
-      </div>
-    </div>
+    <!-- Delete confirmation modal is still here -->
     
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
@@ -212,7 +202,28 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { agentsApi, filesApi, organizationsApi, usersApi, userAgentApi } from '../services/api'
+import axios from 'axios'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+
+// Get API base URL from environment variables or use default
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
+// Use the same api instance as in api.js
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
+// Add auth token to requests
+api.interceptors.request.use(async (config) => {
+  const token = localStorage.getItem('authToken')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
 
 const route = useRoute()
 const router = useRouter()
@@ -223,8 +234,9 @@ const availableUsers = ref([])
 const files = ref([])
 const loading = ref(true)
 const showEditModal = ref(false)
-const showUserModal = ref(false)
+const showAddUserModal = ref(false)
 const showDeleteModal = ref(false)
+const loadingAvailableUsers = ref(false)
 const formData = ref({
   name: '',
   description: '',
@@ -285,16 +297,36 @@ async function fetchAgentData() {
 
 async function fetchAssignedUsers() {
   try {
-    // This is a simplified approach - in a real app you'd have a specific API endpoint
-    // to get users assigned to an agent
+    // Get all users in the organization for reference
     const orgUsers = await usersApi.getAll(agent.value.organizationId)
-    const allUsers = orgUsers.data
+    const allUsers = orgUsers.data;
+    const allUsersMap = {};
     
-    // Filter for users that have this agent assigned
-    // This is just a placeholder - you'd need to implement the real logic based on your API
-    users.value = allUsers.filter(user => user.agentIds?.includes(agentId.value))
+    // Create a map of users by ID for quick lookup
+    allUsers.forEach(user => {
+      allUsersMap[user.id] = user;
+    });
+    
+    // Get all users assigned to this agent using the new endpoint
+    const response = await agentsApi.getUsers(agentId.value);
+    
+    if (response.data) {
+      // Map the user IDs from UserAgent table to actual user objects
+      users.value = response.data.map(mapping => {
+        const user = allUsersMap[mapping.userId];
+        return {
+          id: mapping.userId,
+          email: user?.email || 'Unknown Email',
+          displayName: user?.displayName || user?.email || `User ID: ${mapping.userId}`,
+          role: user?.role || 'User'
+        };
+      });
+    } else {
+      users.value = [];
+    }
   } catch (error) {
-    console.error('Error fetching assigned users:', error)
+    console.error('Error fetching assigned users:', error);
+    users.value = [];
   }
 }
 
@@ -328,42 +360,49 @@ async function updateAgent() {
   }
 }
 
-async function openUserModal() {
-  showUserModal.value = true
-  loadingUsers.value = true
+async function openAddUserModal() {
+  showAddUserModal.value = true
+  loadingAvailableUsers.value = true
   
   try {
     // Fetch all users in the organization
     const orgUsers = await usersApi.getAll(agent.value.organizationId)
-    availableUsers.value = orgUsers.data
+    const allUsers = orgUsers.data;
+    
+    // Filter out users that are already assigned to this agent
+    availableUsers.value = allUsers.filter(user => {
+      return !users.value.some(assignedUser => assignedUser.id === user.id)
+    });
   } catch (error) {
-    console.error('Error fetching users:', error)
+    console.error('Error fetching available users:', error)
   } finally {
-    loadingUsers.value = false
+    loadingAvailableUsers.value = false
   }
 }
 
-function isUserAssigned(userId) {
-  return users.value.some(user => user.id === userId)
-}
-
-async function toggleUserAssignment(user) {
-  const isAssigned = isUserAssigned(user.id)
-  
+async function addUser(user) {
   try {
-    if (isAssigned) {
-      // Remove user from agent
-      await userAgentApi.removeUserFromAgent(user.id, agentId.value)
-      users.value = users.value.filter(u => u.id !== user.id)
-    } else {
-      // Assign user to agent
-      await userAgentApi.assignUserToAgent(user.id, agentId.value)
-      users.value.push(user)
-    }
+    // Assign user to agent
+    await userAgentApi.assignUserToAgent(user.id, agentId.value)
+    
+    // Add user to the local users list
+    users.value.push({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName || user.email,
+      role: user.role || 'User'
+    })
+    
+    // Remove user from available users list
+    availableUsers.value = availableUsers.value.filter(u => u.id !== user.id)
   } catch (error) {
-    console.error('Error updating user assignment:', error)
-    alert('Error updating user assignment: ' + error.message)
+    console.error('Error adding user:', error)
+    alert('Error adding user: ' + error.message)
   }
+}
+
+function closeAddUserModal() {
+  showAddUserModal.value = false
 }
 
 async function removeUser(user) {
@@ -390,9 +429,7 @@ const openEditModal = () => {
   showEditModal.value = true
 }
 
-const closeUserModal = () => {
-  showUserModal.value = false
-}
+// closeUserModal function removed as we now use the Add User modal
 
 const confirmDelete = () => {
   showDeleteModal.value = true
@@ -416,9 +453,39 @@ const formatDate = (dateString) => {
 
 <style scoped>
 .agent-detail-container {
+  padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.add-user-btn {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.add-user-btn:hover {
+  background-color: #45a049;
+}
+
+.remove-icon {
+  font-weight: bold;
+  margin-right: 5px;
+  font-size: 16px;
 }
 
 .loading, .not-found {

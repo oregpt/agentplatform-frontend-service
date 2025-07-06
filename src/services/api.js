@@ -35,7 +35,8 @@ export const agentsApi = {
   getById: (id) => api.get(`/agents/${id}`),
   create: (data) => api.post('/agents', data),
   update: (id, data) => api.put(`/agents/${id}`, data),
-  delete: (id) => api.delete(`/agents/${id}`)
+  delete: (id) => api.delete(`/agents/${id}`),
+  getUsers: (id) => api.get(`/agents/${id}/users`)
 }
 
 // Files API
