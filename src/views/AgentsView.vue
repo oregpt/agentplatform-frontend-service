@@ -52,10 +52,7 @@
           </div>
         </template>
         <template #actions>
-          <router-link :to="`/agents/${agent.id}`" class="view-btn">View</router-link>
-          <router-link :to="`/agents/${agent.id}/files`" class="files-btn">Files</router-link>
-          <button @click="editAgent(agent)" class="edit-btn">Edit</button>
-          <button @click="confirmDelete(agent)" class="delete-btn">Delete</button>
+          <router-link :to="`/agents/${agent.id}`" class="view-btn">MANAGE</router-link>
         </template>
       </ContentCard>
     </div>

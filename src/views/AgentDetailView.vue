@@ -15,10 +15,10 @@
           <span class="agent-id">ID: {{ agent.id }}</span>
         </div>
         <div class="actions">
-          <router-link :to="`/agents/${agent.id}/files`" class="files-btn">
-            Manage Files
-          </router-link>
           <button @click="showEditModal = true" class="edit-btn">Edit Agent</button>
+          <button @click="confirmDelete(agent)" class="delete-btn">Delete Agent</button>
+          <router-link :to="`/agents/${agent.id}/files`" class="files-btn">Manage Files</router-link>
+          <button @click="showUserModal = true" class="users-btn">Manage Users</button>
         </div>
       </div>
       
@@ -28,6 +28,10 @@
           <div class="info-row">
             <span class="label">Organization:</span>
             <span class="value">{{ organizationName }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Agent ID:</span>
+            <span class="value">{{ agent.id }}</span>
           </div>
           <div class="info-row">
             <span class="label">Created:</span>
@@ -41,19 +45,13 @@
             <span class="label">Description:</span>
             <p class="value description">{{ agent.description }}</p>
           </div>
-        </div>
-        
-        <div class="agent-stats-card">
-          <h2>Statistics</h2>
-          <div class="stats-grid">
-            <div class="stat-item">
-              <div class="stat-value">{{ filesCount }}</div>
-              <div class="stat-label">Files</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-value">{{ usersCount }}</div>
-              <div class="stat-label">Users</div>
-            </div>
+          <div class="info-row">
+            <span class="label">Instructions:</span>
+            <p class="value description">{{ agent.instructions }}</p>
+          </div>
+          <div class="info-row">
+            <span class="label">AI Provider:</span>
+            <span class="value">{{ agent.aiProvider }}</span>
           </div>
         </div>
         
@@ -65,7 +63,6 @@
         <div class="agent-users-card">
           <div class="card-header">
             <h2>Assigned Users</h2>
-            <button @click="showUserModal = true" class="add-user-btn">Manage Users</button>
           </div>
           
           <div v-if="users.length === 0" class="empty-users">
@@ -169,6 +166,19 @@
         </div>
       </div>
     </div>
+    
+    <!-- Delete Confirmation Dialog -->
+    <ConfirmDialog
+      v-model="showDeleteModal"
+      title="Delete Agent"
+      :message="`Are you sure you want to delete ${agent.name}?`"
+      details="This action cannot be undone. All associated files and user assignments will be permanently deleted."
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      confirm-type="danger"
+      icon="delete"
+      @confirm="deleteAgent"
+    />
   </div>
 </template>
 
@@ -176,6 +186,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { agentsApi, filesApi, organizationsApi, usersApi, userAgentApi } from '../services/api'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -185,9 +196,9 @@ const users = ref([])
 const availableUsers = ref([])
 const files = ref([])
 const loading = ref(true)
-const loadingUsers = ref(false)
 const showEditModal = ref(false)
 const showUserModal = ref(false)
+const showDeleteModal = ref(false)
 const formData = ref({
   name: '',
   description: '',
@@ -334,15 +345,27 @@ async function removeUser(user) {
   }
 }
 
-function closeUserModal() {
+const closeUserModal = () => {
   showUserModal.value = false
-  availableUsers.value = []
 }
 
-function formatDate(dateString) {
+const confirmDelete = () => {
+  showDeleteModal.value = true
+}
+
+const deleteAgent = async () => {
+  try {
+    await agentsApi.delete(agent.value.id)
+    router.push('/agents')
+  } catch (error) {
+    console.error('Error deleting agent:', error)
+    // You could add a notification system here
+  }
+}
+
+const formatDate = (dateString) => {
   if (!dateString) return 'N/A'
-  const date = new Date(dateString)
-  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
+  return new Date(dateString).toLocaleString()
 }
 </script>
 
@@ -397,24 +420,51 @@ function formatDate(dateString) {
   gap: 10px;
 }
 
-.files-btn, .edit-btn {
-  padding: 10px 20px;
+.files-btn, .edit-btn, .delete-btn, .users-btn {
+  padding: 8px 15px;
   border-radius: 4px;
   cursor: pointer;
-  border: none;
-  font-size: 1rem;
+  font-size: 0.9rem;
   text-decoration: none;
+  display: inline-block;
+  text-align: center;
+  border: none;
 }
 
 .files-btn {
   background-color: #2ecc71;
   color: white;
-  display: inline-block;
+}
+
+.files-btn:hover {
+  background-color: #27ae60;
 }
 
 .edit-btn {
+  background-color: #f39c12;
+  color: white;
+}
+
+.edit-btn:hover {
+  background-color: #d35400;
+}
+
+.delete-btn {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.delete-btn:hover {
+  background-color: #c0392b;
+}
+
+.users-btn {
   background-color: #3498db;
   color: white;
+}
+
+.users-btn:hover {
+  background-color: #2980b9;
 }
 
 .agent-content {
