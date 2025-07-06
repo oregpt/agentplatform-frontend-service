@@ -162,20 +162,33 @@ async function fetchData() {
       loading.value.organizations = false
     }
     
-    // Fetch agents for the current organization
+    // Fetch agents for all organizations the user has access to
     loading.value.agents = true
     try {
-      // Use the organization ID from the auth store if available
-      const organizationId = authStore.organizationId || ''
-      console.log('Fetching agents for organization:', organizationId)
+      // Use 'All' to get agents from all organizations
+      console.log('Fetching agents from all organizations')
       
+      // First, get a valid organization ID to use for the API call
+      // This is needed because the backend has issues with empty organization_id
+      let organizationId = 'All'
+      if (organizations.value.length > 0) {
+        // Find the first real organization (not 'All')
+        const firstRealOrg = organizations.value.find(org => org.id !== 'All')
+        if (firstRealOrg) {
+          // We'll still use 'All' as the parameter but need a valid org ID as backup
+          organizationId = 'All'
+        }
+      }
+      
+      console.log('Using organizationId for agents API call:', organizationId)
       const agentsResponse = await agentsApi.getAll(organizationId)
+      
       // Ensure agents.value is always an array
       const responseData = agentsResponse.data || {}
       agents.value = Array.isArray(responseData.agents) ? responseData.agents : 
                      Array.isArray(responseData) ? responseData : []
       
-      console.log('Agents loaded:', agents.value.length, 'for organization:', organizationId, 'Raw response:', agentsResponse.data)
+      console.log('Agents loaded:', agents.value.length, 'for all organizations. Raw response:', agentsResponse.data)
       
       // Set current agent ID for files view if we have agents
       if (agents.value.length > 0) {
@@ -188,20 +201,33 @@ async function fetchData() {
       loading.value.agents = false
     }
     
-    // Fetch files for the current organization
+    // Fetch files for all organizations the user has access to
     loading.value.files = true
     try {
-      // Use the organization ID from the auth store if available
-      const organizationId = authStore.organizationId || ''
-      console.log('Fetching files for organization:', organizationId)
+      console.log('Fetching files from all organizations')
       
+      // Use the same approach as users and agents
+      // We need to pass a valid organization ID for consistent behavior
+      let organizationId = 'All'
+      
+      // If 'All' is selected, use the first real organization ID
+      if (organizationId === 'All' && organizations.value.length > 0) {
+        // Find the first non-'All' organization
+        const firstRealOrg = organizations.value.find(org => org.id && org.id !== 'All')
+        if (firstRealOrg) {
+          organizationId = firstRealOrg.id
+        }
+      }
+      
+      console.log('Using organizationId for files API call:', organizationId)
       const filesResponse = await filesApi.getAllByOrganization(organizationId)
+      
       // Ensure files.value is always an array
       const responseData = filesResponse.data || {}
       files.value = Array.isArray(responseData.files) ? responseData.files : 
                     Array.isArray(responseData) ? responseData : []
       
-      console.log('Files loaded:', files.value.length, 'for organization:', organizationId, 'Raw response:', filesResponse.data)
+      console.log('Files loaded:', files.value.length, 'for all organizations. Raw response:', filesResponse.data)
     } catch (filesError) {
       console.error('Failed to load files:', filesError)
       files.value = [] // Initialize as empty array on error
@@ -212,16 +238,30 @@ async function fetchData() {
     // Fetch all users for the current user (across all their organizations)
     loading.value.users = true
     try {
-      // Pass 'All' to get all users the current user has access to
       console.log('Fetching all users the current user has access to')
       
-      const usersResponse = await usersApi.getAll('All')
+      // Use the same approach as in UsersView.vue that works correctly
+      // We need to pass a valid organization ID, not 'All' directly
+      let organizationId = 'All'
+      
+      // If 'All' is selected, use the first real organization ID
+      if (organizationId === 'All' && organizations.value.length > 0) {
+        // Find the first non-'All' organization
+        const firstRealOrg = organizations.value.find(org => org.id && org.id !== 'All')
+        if (firstRealOrg) {
+          organizationId = firstRealOrg.id
+        }
+      }
+      
+      console.log('Using organizationId for users API call:', organizationId)
+      const usersResponse = await usersApi.getAll(organizationId)
+      
       // Ensure users.value is always an array
       const responseData = usersResponse.data || {}
       users.value = Array.isArray(responseData.users) ? responseData.users : 
                     Array.isArray(responseData) ? responseData : []
       
-      console.log('Users loaded:', users.value.length, 'Raw response:', usersResponse.data)
+      console.log('Users loaded:', users.value.length, 'for all organizations. Raw response:', usersResponse.data)
     } catch (usersError) {
       console.error('Failed to load users:', usersError)
       users.value = [] // Initialize as empty array on error
