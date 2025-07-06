@@ -51,7 +51,11 @@ export const filesApi = {
 
 // Users API
 export const usersApi = {
-  getAll: () => api.get('/users'),
+  getAll: (organizationId) => {
+    // If organizationId is provided, add it as a query parameter
+    const url = organizationId ? `/users?organization_id=${organizationId}` : '/users'
+    return api.get(url)
+  },
   getById: (userId) => api.get(`/users/${userId}`),
   create: (data) => api.post('/users', data),
   update: (userId, data) => api.put(`/users/${userId}`, data),
