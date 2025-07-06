@@ -267,6 +267,7 @@ async function createOrganization() {
   }
 }
 
+// Updated to fix notification handling
 async function updateOrganization() {
   try {
     console.log('Updating organization:', selectedOrg.value.id, formData.value)

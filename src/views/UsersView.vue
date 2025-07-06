@@ -457,6 +457,7 @@ async function createUser() {
   }
 }
 
+// Updated to fix notification handling
 async function updateUser() {
   try {
     const payload = {

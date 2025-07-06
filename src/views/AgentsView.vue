@@ -385,6 +385,7 @@ async function createAgent() {
   }
 }
 
+// Updated to fix notification handling
 async function updateAgent() {
   try {
     // Validate JSON metadata
