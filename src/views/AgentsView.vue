@@ -409,15 +409,30 @@ function confirmDelete(agent) {
   showDeleteModal.value = true
 }
 
-async function deleteAgent(agentId) {
-  if (!confirm('Are you sure you want to delete this agent?')) {
+async function deleteAgent() {
+  // Get the agent ID from the selectedAgent ref
+  const agentId = selectedAgent.value?.id
+  
+  // Validate that we have a valid agent ID
+  if (!agentId) {
+    console.error('Cannot delete agent: No agent ID available', selectedAgent.value)
+    showNotification('error', 'Failed to delete agent', 'No agent ID available')
     return
   }
   
+  console.log(`Attempting to delete agent with ID: ${agentId}`)
+  
   try {
+    // Delete the agent
     await agentsApi.delete(agentId)
+    
+    // Refresh the agents list
     await fetchAgents()
     showNotification('success', 'Agent deleted successfully')
+    
+    // Reset the selected agent
+    selectedAgent.value = {}
+    showDeleteModal.value = false
   } catch (err) {
     console.error('Error deleting agent:', err)
     showNotification('error', 'Failed to delete agent', err.message || 'Unknown error')
@@ -559,11 +574,35 @@ async function createAgent() {
     
     // Final validation - we must have an organization ID and it can't be 'All'
     if (!orgId || orgId === 'All') {
-      showNotification('error', 'Missing organization', 'Please select a valid organization for this agent')
+      // Try auth store first
+      if (authStore.organizationId && authStore.organizationId !== 'All') {
+        orgId = authStore.organizationId
+        console.log('Using organization ID from auth store:', orgId)
+      } 
+      // If still no valid org ID, find the first available organization
+      else if (organizations.value && organizations.value.length > 0) {
+        // Find first non-'All' organization
+        const firstOrg = organizations.value.find(org => org.id !== 'All')
+        if (firstOrg) {
+          orgId = firstOrg.id
+          console.log('Using first available organization ID:', orgId)
+        }
+      }
+    }
+    
+    // Final validation - we must have a valid organization ID
+    if (!orgId || orgId === 'All') {
+      showNotification('error', 'A valid organization is required to create an agent')
       return
     }
     
-    console.log('Creating agent with organization ID:', orgId)
+    console.log('Using organization ID for agent creation:', orgId)
+    
+    // Validate required fields
+    if (!formData.value.instructions || !formData.value.aiProvider) {
+      showNotification('error', 'Missing required fields', 'Please fill in all required fields (Name, Instructions, and AI Provider)')
+      return
+    }
     
     // Validate JSON metadata
     try {
@@ -607,18 +646,40 @@ async function uploadAgentFiles(agentId) {
     isUploading.value = true
     uploadError.value = ''
     
-    // Get the organization ID from the form or selected organization
+    // IMPORTANT: We must use the same organization ID that was used to create the agent
+    // This should be the same logic as in createAgent function
     let orgId = formData.value.organizationId
+    
+    // If no organization ID in form, use selected organization
     if (!orgId && selectedOrgId.value !== 'All') {
       orgId = selectedOrgId.value
-    } else if (!orgId) {
-      // Fallback to auth store organization ID
-      orgId = authStore.organizationId
+    }
+    
+    // If still no valid organization ID, use auth store or first available organization
+    if (!orgId || orgId === 'All') {
+      // Try auth store first
+      if (authStore.organizationId && authStore.organizationId !== 'All') {
+        orgId = authStore.organizationId
+      } 
+      // If still no valid org ID, find the first available organization
+      else if (organizations.value && organizations.value.length > 0) {
+        // Find first non-'All' organization
+        const firstOrg = organizations.value.find(org => org.id !== 'All')
+        if (firstOrg) {
+          orgId = firstOrg.id
+        }
+      }
+    }
+    
+    // Final validation - we must have a valid organization ID
+    if (!orgId || orgId === 'All') {
+      throw new Error('A valid organization ID is required to upload files')
     }
     
     console.log('Uploading files for agent', agentId, 'with organization ID:', orgId)
     
     for (const file of uploadedFiles.value) {
+      console.log(`Uploading file ${file.name} for agent ${agentId} with organization ${orgId}`)
       await filesApi.uploadAgentFile(agentId, file, (progress) => {
         uploadProgress.value = progress
       }, orgId)
