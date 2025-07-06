@@ -374,22 +374,58 @@ async function deleteAgent(agentId) {
 // Helper function to show notifications with proper type checking
 function showNotification(type, message, details = '') {
   try {
+    // First, log the message to console regardless of notification system
+    console.log(`${type}: ${message}`, details)
+    
+    // Check if notify exists at all
+    if (!notify) {
+      return
+    }
+    
+    // Case 1: notify is a direct function
     if (typeof notify === 'function') {
       notify({
         type,
         message,
         details
       })
-    } else if (notify && typeof notify[type] === 'function') {
-      notify[type](message)
-    } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+      return
+    }
+    
+    // Case 2: notify has type-specific methods (e.g., notify.success, notify.error)
+    if (typeof notify[type] === 'function') {
+      notify[type](message, details)
+      return
+    }
+    
+    // Case 3: notify is a reactive reference with addNotification method
+    if (notify.value && typeof notify.value.addNotification === 'function') {
       notify.value.addNotification({
         type,
         message,
         details
       })
-    } else {
-      console.log(`${type}: ${message}`, details)
+      return
+    }
+    
+    // Case 4: notify has a show method
+    if (typeof notify.show === 'function') {
+      notify.show({
+        type,
+        message,
+        details
+      })
+      return
+    }
+    
+    // Case 5: notify is a reactive reference with show method
+    if (notify.value && typeof notify.value.show === 'function') {
+      notify.value.show({
+        type,
+        message,
+        details
+      })
+      return
     }
   } catch (notifyErr) {
     console.error('Error showing notification:', notifyErr)
