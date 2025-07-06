@@ -25,7 +25,11 @@ export const organizationsApi = {
 
 // Agents API
 export const agentsApi = {
-  getAll: () => api.get('/agents'),
+  getAll: (organizationId) => {
+    // If organizationId is provided, add it as a query parameter
+    const url = organizationId ? `/agents?organization_id=${organizationId}` : '/agents'
+    return api.get(url)
+  },
   getById: (id) => api.get(`/agents/${id}`),
   create: (data) => api.post('/agents', data),
   update: (id, data) => api.put(`/agents/${id}`, data),

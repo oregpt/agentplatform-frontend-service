@@ -162,16 +162,20 @@ async function fetchData() {
       loading.value.organizations = false
     }
     
-    // Fetch agents
+    // Fetch agents for the current organization
     loading.value.agents = true
     try {
-      const agentsResponse = await agentsApi.getAll()
+      // Use the organization ID from the auth store if available
+      const organizationId = authStore.organizationId || ''
+      console.log('Fetching agents for organization:', organizationId)
+      
+      const agentsResponse = await agentsApi.getAll(organizationId)
       // Ensure agents.value is always an array
       const responseData = agentsResponse.data || {}
       agents.value = Array.isArray(responseData.agents) ? responseData.agents : 
                      Array.isArray(responseData) ? responseData : []
       
-      console.log('Agents loaded:', agents.value, 'Raw response:', agentsResponse.data)
+      console.log('Agents loaded:', agents.value.length, 'for organization:', organizationId, 'Raw response:', agentsResponse.data)
       
       // Set current agent ID for files view if we have agents
       if (agents.value.length > 0) {
