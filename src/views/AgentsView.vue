@@ -311,18 +311,28 @@ async function deleteAgent() {
     console.log('Deleting agent:', selectedAgent.value.id)
     await agentsApi.delete(selectedAgent.value.id)
     showDeleteModal.value = false
-    notify({
-      type: 'success',
-      message: `Agent "${selectedAgent.value.name}" deleted successfully`
-    })
+    
+    if (typeof notify === 'function') {
+      notify({
+        type: 'success',
+        message: `Agent "${selectedAgent.value.name}" deleted successfully`
+      })
+    } else if (notify && typeof notify.success === 'function') {
+      notify.success(`Agent "${selectedAgent.value.name}" deleted successfully`)
+    }
+    
     // Fetch agents after successful deletion
     await fetchAgents()
   } catch (err) {
-    notify({
-      type: 'error',
-      message: 'Failed to delete agent',
-      details: err.message
-    })
+    if (typeof notify === 'function') {
+      notify({
+        type: 'error',
+        message: 'Failed to delete agent',
+        details: err.message
+      })
+    } else if (notify && typeof notify.error === 'function') {
+      notify.error(`Failed to delete agent: ${err.message || 'Unknown error'}`)
+    }
     console.error('Error deleting agent:', err)
   } finally {
     loading.value = false
@@ -382,11 +392,15 @@ async function updateAgent() {
     try {
       parsedMetadata = JSON.parse(formData.value.metadata || '{}')
     } catch (e) {
-      notify({
-        type: 'error',
-        message: 'Invalid JSON metadata format',
-        details: e.message
-      })
+      if (typeof notify === 'function') {
+        notify({
+          type: 'error',
+          message: 'Invalid JSON metadata format',
+          details: e.message
+        })
+      } else if (notify && typeof notify.error === 'function') {
+        notify.error(`Invalid JSON metadata format: ${e.message}`)
+      }
       return
     }
 
@@ -405,18 +419,28 @@ async function updateAgent() {
       await uploadAgentFiles(selectedAgent.value.id)
     }
     
-    await fetchAgents()
     showEditModal.value = false
-    notify({
-      type: 'success',
-      message: 'Agent updated successfully'
-    })
+    
+    if (typeof notify === 'function') {
+      notify({
+        type: 'success',
+        message: 'Agent updated successfully'
+      })
+    } else if (notify && typeof notify.success === 'function') {
+      notify.success('Agent updated successfully')
+    }
+    
+    await fetchAgents()
   } catch (err) {
-    notify({
-      type: 'error',
-      message: 'Failed to update agent',
-      details: err.message
-    })
+    if (typeof notify === 'function') {
+      notify({
+        type: 'error',
+        message: 'Failed to update agent',
+        details: err.message
+      })
+    } else if (notify && typeof notify.error === 'function') {
+      notify.error(`Failed to update agent: ${err.message || 'Unknown error'}`)
+    }
     console.error('Error updating agent:', err)
   }
 }

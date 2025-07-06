@@ -469,19 +469,29 @@ async function updateUser() {
     
     console.log('Updating user:', selectedUser.value.id, payload)
     await usersApi.update(selectedUser.value.id, payload)
-    notify({
-      type: 'success',
-      message: 'User updated successfully'
-    })
+    
+    if (typeof notify === 'function') {
+      notify({
+        type: 'success',
+        message: 'User updated successfully'
+      })
+    } else if (notify && typeof notify.success === 'function') {
+      notify.success('User updated successfully')
+    }
+    
     closeModal()
     // Fetch users after successful update
     await fetchUsers()
   } catch (err) {
-    notify({
-      type: 'error',
-      message: 'Failed to update user',
-      details: err.message
-    })
+    if (typeof notify === 'function') {
+      notify({
+        type: 'error',
+        message: 'Failed to update user',
+        details: err.message
+      })
+    } else if (notify && typeof notify.error === 'function') {
+      notify.error(`Failed to update user: ${err.message || 'Unknown error'}`)
+    }
     console.error('Error updating user:', err)
   }
 }
@@ -490,19 +500,29 @@ async function deleteUser() {
   try {
     console.log('Deleting user:', selectedUser.value.id)
     await usersApi.delete(selectedUser.value.id)
-    notify({
-      type: 'success',
-      message: 'User deleted successfully'
-    })
+    
+    if (typeof notify === 'function') {
+      notify({
+        type: 'success',
+        message: 'User deleted successfully'
+      })
+    } else if (notify && typeof notify.success === 'function') {
+      notify.success('User deleted successfully')
+    }
+    
     showDeleteModal.value = false
     // Fetch users after successful deletion
     await fetchUsers()
   } catch (err) {
-    notify({
-      type: 'error',
-      message: 'Failed to delete user',
-      details: err.message
-    })
+    if (typeof notify === 'function') {
+      notify({
+        type: 'error',
+        message: 'Failed to delete user',
+        details: err.message
+      })
+    } else if (notify && typeof notify.error === 'function') {
+      notify.error(`Failed to delete user: ${err.message || 'Unknown error'}`)
+    }
     console.error('Error deleting user:', err)
   }
 }
