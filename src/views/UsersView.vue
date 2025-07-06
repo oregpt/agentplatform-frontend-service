@@ -470,15 +470,22 @@ async function saveAgentAssignments() {
 
 async function createUser() {
   try {
+    // Generate a UUID for the user
+    const userId = crypto.randomUUID()
+    
     const payload = {
+      user_id: userId, // Add user_id field for backend
       name: formData.value.name,
       email: formData.value.email,
       password: formData.value.password,
       description: formData.value.description,
       role: formData.value.role,
-      organizationId: selectedOrgId.value
+      organizationId: selectedOrgId.value,
+      // Add empty JSON metadata to satisfy the database schema requirement
+      metadata: '{}'
     }
     
+    console.log('Creating user with payload:', payload)
     await usersApi.create(payload)
     await fetchUsers()
     notify({

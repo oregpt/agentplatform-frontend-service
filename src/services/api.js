@@ -27,7 +27,9 @@ export const organizationsApi = {
 export const agentsApi = {
   getAll: (organizationId) => {
     // If organizationId is provided, add it as a query parameter
-    const url = organizationId ? `/agents?organization_id=${organizationId}` : '/agents'
+    // Ensure organizationId is a string
+    const orgId = organizationId ? String(organizationId) : ''
+    const url = orgId ? `/agents?organization_id=${orgId}` : '/agents'
     return api.get(url)
   },
   getById: (id) => api.get(`/agents/${id}`),
@@ -41,7 +43,9 @@ export const filesApi = {
   getAll: (agentId) => api.get(`/files/agent/${agentId}`),
   getAllByOrganization: (organizationId) => {
     // If organizationId is provided, add it as a query parameter
-    const url = organizationId ? `/files/organization?organization_id=${organizationId}` : '/files/organization'
+    // Ensure organizationId is a string
+    const orgId = organizationId ? String(organizationId) : ''
+    const url = orgId ? `/files/organization?organization_id=${orgId}` : '/files/organization'
     return api.get(url)
   },
   getById: (id) => api.get(`/files/${id}`),
@@ -58,7 +62,9 @@ export const filesApi = {
 export const usersApi = {
   getAll: (organizationId) => {
     // If organizationId is provided, add it as a query parameter
-    const url = organizationId ? `/users?organization_id=${organizationId}` : '/users'
+    // Ensure organizationId is a string
+    const orgId = organizationId ? String(organizationId) : ''
+    const url = orgId ? `/users?organization_id=${orgId}` : '/users'
     return api.get(url)
   },
   getById: (userId) => api.get(`/users/${userId}`),
