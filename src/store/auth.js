@@ -261,7 +261,6 @@ export const useAuthStore = defineStore('auth', () => {
       }
     } catch (err) {
       console.error('Failed to fetch user organizations:', err)
-      userOrganizations.value = []
     }
   }
   
@@ -272,7 +271,19 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('selectedOrganizationId', orgId)
     
     // Special handling for 'all' option
-    const effectiveOrgId = orgId === 'all' ? '' : orgId
+    // If 'All' is selected, we'll use the first organization from the user's organizations list
+    // This ensures we always send a valid organization ID to the auth service
+    let effectiveOrgId = orgId
+    if (orgId === 'all' || orgId === 'All') {
+      // If we have user organizations, use the first one as the default for token generation
+      if (userOrganizations.value && userOrganizations.value.length > 0) {
+        effectiveOrgId = userOrganizations.value[0].id
+        console.log('Using first organization for token:', effectiveOrgId)
+      } else {
+        // If no organizations are available, use empty string
+        effectiveOrgId = ''
+      }
+    }
     
     // Refresh token with new organization ID
     if (user.value) {
@@ -280,10 +291,17 @@ export const useAuthStore = defineStore('auth', () => {
         // Get a fresh Firebase token
         const auth = getFirebaseAuth()
         const firebaseUser = auth.currentUser
+        if (!firebaseUser) {
+          console.error('No Firebase user found when trying to set organization')
+          return false
+        }
+        
         const firebaseIdToken = await firebaseUser.getIdToken(true)
         
         // Exchange it for a fresh custom JWT with the new organization ID
         const authApiUrl = import.meta.env.VITE_AUTH_API_URL
+        console.log(`Requesting new JWT with organization_id: ${effectiveOrgId}`)
+        
         const response = await axios.post(`${authApiUrl}/api/v1/auth/generate-jwt`, {
           firebase_token: firebaseIdToken,
           organization_id: effectiveOrgId
@@ -300,18 +318,22 @@ export const useAuthStore = defineStore('auth', () => {
         return true
       } catch (error) {
         console.error('Failed to update organization token:', error)
+        if (error.response) {
+          console.error('Error response data:', error.response.data)
+          console.error('Error response status:', error.response.status)
+        }
         return false
       }
     }
     return true
   }
-  
+
   // Initialize from localStorage if available
   const storedOrgId = localStorage.getItem('selectedOrganizationId')
   if (storedOrgId) {
     organizationId.value = storedOrgId
   }
-  
+
   return {
     user,
     token,

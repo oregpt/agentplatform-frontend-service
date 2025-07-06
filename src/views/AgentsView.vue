@@ -356,56 +356,80 @@ function confirmDelete(agent) {
   showDeleteModal.value = true
 }
 
-async function deleteAgent() {
+async function deleteAgent(agentId) {
+  if (!confirm('Are you sure you want to delete this agent?')) {
+    return
+  }
+  
   try {
-    console.log('Deleting agent:', selectedAgent.value.id)
-    await agentsApi.delete(selectedAgent.value.id)
-    
-    try {
-      // Try different notification methods
-      if (typeof notify === 'function') {
-        notify({
-          type: 'success',
-          message: 'Agent deleted successfully'
-        })
-      } else if (notify && typeof notify.success === 'function') {
-        notify.success('Agent deleted successfully')
-      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
-        notify.value.addNotification({
-          type: 'success',
-          message: 'Agent deleted successfully'
-        })
-      }
-    } catch (notifyErr) {
-      console.error('Error showing success notification:', notifyErr)
-    }
-    
-    showDeleteModal.value = false
-    // Fetch agents after successful deletion
+    await agentsApi.delete(agentId)
     await fetchAgents()
+    showNotification('success', 'Agent deleted successfully')
   } catch (err) {
-    try {
-      // Try different notification methods
-      if (typeof notify === 'function') {
-        notify({
-          type: 'error',
-          message: 'Failed to delete agent',
-          details: err.message
-        })
-      } else if (notify && typeof notify.error === 'function') {
-        notify.error(`Failed to delete agent: ${err.message || 'Unknown error'}`)
-      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
-        notify.value.addNotification({
-          type: 'error',
-          message: 'Failed to delete agent: ' + (err.message || 'Unknown error')
-        })
-      }
-    } catch (notifyErr) {
-      console.error('Error showing error notification:', notifyErr)
-    }
     console.error('Error deleting agent:', err)
-  } finally {
-    loading.value = false
+    showNotification('error', 'Failed to delete agent', err.message || 'Unknown error')
+  }
+}
+
+// Helper function to show notifications with proper type checking
+function showNotification(type, message, details = '') {
+  try {
+    if (typeof notify === 'function') {
+      notify({
+        type,
+        message,
+        details
+      })
+    } else if (notify && typeof notify[type] === 'function') {
+      notify[type](message)
+    } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
+      notify.value.addNotification({
+        type,
+        message,
+        details
+      })
+    } else {
+      console.log(`${type}: ${message}`, details)
+    }
+  } catch (notifyErr) {
+    console.error('Error showing notification:', notifyErr)
+  }
+}
+
+// Updated to fix notification handling and include required fields
+async function updateAgent() {
+  try {
+    // Validate required fields
+    if (!formData.value.name || !formData.value.instructions || !formData.value.aiProvider) {
+      showNotification('error', 'Missing required fields', 'Please fill in all required fields (Name, Instructions, and AI Provider)')
+      return
+    }
+    
+    // Validate JSON metadata
+    try {
+      JSON.parse(formData.value.metadata)
+    } catch (e) {
+      showNotification('error', 'Invalid JSON metadata format', e.message)
+      return
+    }
+    
+    const agentData = {
+      id: selectedAgent.value.id,
+      name: formData.value.name,
+      description: formData.value.description,
+      instructions: formData.value.instructions,
+      ai_provider: formData.value.aiProvider,
+      metadata: JSON.parse(formData.value.metadata)
+    }
+
+    await agentsApi.update(agentData)
+    await fetchAgents()
+    showEditModal.value = false
+    
+    showNotification('success', 'Agent updated successfully')
+  } catch (err) {
+    console.error('Error updating agent:', err)
+    showNotification('error', 'Failed to update agent', err.message || 'Unknown error')
   }
 }
 
@@ -413,11 +437,7 @@ async function createAgent() {
   try {
     // Validate required fields
     if (!formData.value.name || !formData.value.instructions || !formData.value.aiProvider) {
-      notify({
-        type: 'error',
-        message: 'Missing required fields',
-        details: 'Please fill in all required fields (Name, Instructions, and AI Provider)'
-      })
+      showNotification('error', 'Missing required fields', 'Please fill in all required fields (Name, Instructions, and AI Provider)')
       return
     }
     
@@ -428,11 +448,7 @@ async function createAgent() {
       orgId = selectedOrgId.value
     } else if (!orgId) {
       // If 'All' is selected but no org is selected in the form
-      notify({
-        type: 'error',
-        message: 'Missing organization',
-        details: 'Please select an organization for this agent'
-      })
+      showNotification('error', 'Missing organization', 'Please select an organization for this agent')
       return
     }
     
@@ -440,11 +456,7 @@ async function createAgent() {
     try {
       JSON.parse(formData.value.metadata)
     } catch (e) {
-      notify({
-        type: 'error',
-        message: 'Invalid JSON metadata format',
-        details: e.message
-      })
+      showNotification('error', 'Invalid JSON metadata format', e.message)
       return
     }
     
@@ -468,141 +480,31 @@ async function createAgent() {
     await fetchAgents()
     showCreateModal.value = false
     resetForm()
-    notify({
-      type: 'success',
-      message: 'Agent created successfully'
-    })
+    showNotification('success', 'Agent created successfully')
   } catch (err) {
-    notify({
-      type: 'error',
-      message: 'Failed to create agent',
-      details: err.message
-    })
+    showNotification('error', 'Failed to create agent', err.message)
     console.error('Error creating agent:', err)
   }
 }
 
-// Updated to fix notification handling and include required fields
-async function updateAgent() {
-  try {
-    // Validate JSON metadata
-    let parsedMetadata;
-    try {
-      parsedMetadata = JSON.parse(formData.value.metadata || '{}')
-    } catch (e) {
-      try {
-        // Try different notification methods
-        if (typeof notify === 'function') {
-          notify({
-            type: 'error',
-            message: 'Invalid JSON metadata format',
-            details: e.message
-          })
-        } else if (notify && typeof notify.error === 'function') {
-          notify.error(`Invalid JSON metadata format: ${e.message}`)
-        } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
-          notify.value.addNotification({
-            type: 'error',
-            message: 'Invalid JSON metadata format: ' + e.message
-          })
-        }
-      } catch (notifyErr) {
-        console.error('Error showing notification:', notifyErr)
-      }
-      return
-    }
-
-    // Include all required fields, especially AIProvider
-    const agentData = {
-      name: formData.value.name,
-      description: formData.value.description,
-      organizationId: formData.value.organizationId || selectedOrgId.value,
-      metadata: parsedMetadata,
-      // Include AIProvider from the original agent data
-      aiProvider: selectedAgent.value.aiProvider || 'openai'
-    }
-
-    console.log('Updating agent:', selectedAgent.value.id, agentData)
-    await agentsApi.update(selectedAgent.value.id, agentData)
-    
-    // Upload files if any are selected
-    if (uploadedFiles.value.length > 0) {
-      await uploadAgentFiles(selectedAgent.value.id)
-    }
-    
-    showEditModal.value = false
-    
-    try {
-      // Try different notification methods
-      if (typeof notify === 'function') {
-        notify({
-          type: 'success',
-          message: 'Agent updated successfully'
-        })
-      } else if (notify && typeof notify.success === 'function') {
-        notify.success('Agent updated successfully')
-      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
-        notify.value.addNotification({
-          type: 'success',
-          message: 'Agent updated successfully'
-        })
-      }
-    } catch (notifyErr) {
-      console.error('Error showing success notification:', notifyErr)
-    }
-    
-    await fetchAgents()
-  } catch (err) {
-    try {
-      // Try different notification methods
-      if (typeof notify === 'function') {
-        notify({
-          type: 'error',
-          message: 'Failed to update agent',
-          details: err.message
-        })
-      } else if (notify && typeof notify.error === 'function') {
-        notify.error(`Failed to update agent: ${err.message || 'Unknown error'}`)
-      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
-        notify.value.addNotification({
-          type: 'error',
-          message: 'Failed to update agent: ' + (err.message || 'Unknown error')
-        })
-      }
-    } catch (notifyErr) {
-      console.error('Error showing error notification:', notifyErr)
-    }
-    console.error('Error updating agent:', err)
-  }
-}
-
+// Helper function for uploading agent files
 async function uploadAgentFiles(agentId) {
   try {
     isUploading.value = true
-    const formData = new FormData()
-    uploadedFiles.value.forEach(file => {
-      formData.append('files', file)
-    })
-    const response = await filesApi.upload(agentId, formData, {
-      onUploadProgress: (progressEvent) => {
-        uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-      }
-    })
-    uploadedFiles.value = []
-    uploadProgress.value = 0
+    uploadError.value = ''
+    
+    for (const file of uploadedFiles.value) {
+      await filesApi.uploadAgentFile(agentId, file, (progress) => {
+        uploadProgress.value = progress
+      })
+    }
+    
     isUploading.value = false
-    notify({
-      type: 'success',
-      message: 'Files uploaded successfully'
-    })
+    showNotification('success', 'Files uploaded successfully')
   } catch (err) {
     uploadError.value = 'Failed to upload files'
     isUploading.value = false
-    notify({
-      type: 'error',
-      message: 'Failed to upload files',
-      details: err.message
-    })
+    showNotification('error', 'Failed to upload files', err.message)
     console.error('Error uploading files:', err)
   }
 }
