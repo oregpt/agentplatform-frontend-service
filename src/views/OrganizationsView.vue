@@ -133,6 +133,7 @@
 <script setup>
 import { ref, onMounted, computed, inject } from 'vue'
 import { organizationsApi, agentsApi, usersApi } from '../services/api'
+import { useAuthStore } from '../store/auth'
 import SearchBar from '../components/SearchBar.vue'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import ErrorMessage from '../components/ErrorMessage.vue'
@@ -152,6 +153,9 @@ const formData = ref({
   description: ''
 })
 const selectedOrg = ref({})
+
+// Auth store
+const authStore = useAuthStore()
 
 // Notifications
 const notify = inject('notify', null)
@@ -256,7 +260,43 @@ function confirmDelete(org) {
 
 async function createOrganization() {
   try {
-    await organizationsApi.create(formData.value)
+    // Create the organization
+    const response = await organizationsApi.create(formData.value)
+    console.log('Organization created successfully:', response)
+    
+    // Get the newly created organization ID
+    let newOrgId = null
+    if (response && response.data && response.data.id) {
+      newOrgId = response.data.id
+    } else if (response && response.data && response.data.organization && response.data.organization.id) {
+      newOrgId = response.data.organization.id
+    }
+    
+    // If we have the organization ID and current user, add the user to the organization
+    if (newOrgId && authStore.user) {
+      try {
+        console.log('Adding current user as admin to the new organization:', newOrgId)
+        
+        // Create payload to add current user to organization
+        const userOrgPayload = {
+          name: authStore.user.displayName || authStore.user.email,
+          email: authStore.user.email,
+          role: 'admin', // Set as admin
+          organizationId: newOrgId
+        }
+        
+        // Add the current user to the organization
+        await usersApi.update(authStore.user.uid, userOrgPayload)
+        console.log('Current user added as admin to the new organization')
+        
+        // Refresh user organizations in auth store
+        await authStore.fetchUserOrganizations()
+      } catch (userErr) {
+        console.error('Error adding current user to organization:', userErr)
+      }
+    } else {
+      console.warn('Could not add user to organization: Missing organization ID or user info')
+    }
     
     try {
       // Try different notification methods
