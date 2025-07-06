@@ -15,7 +15,7 @@
           <span class="agent-id">ID: {{ agent.id }}</span>
         </div>
         <div class="actions">
-          <button @click="showEditModal = true" class="edit-btn">Edit Agent</button>
+          <button @click="openEditModal()" class="edit-btn">Edit Agent</button>
           <button @click="confirmDelete(agent)" class="delete-btn">Delete Agent</button>
           <router-link :to="`/agents/${agent.id}/files`" class="files-btn">Manage Files</router-link>
           <button @click="showUserModal = true" class="users-btn">Manage Users</button>
@@ -112,6 +112,32 @@
           </div>
           
           <div class="form-group">
+            <label for="instructions">Instructions (Required)</label>
+            <textarea 
+              id="instructions" 
+              v-model="formData.instructions" 
+              placeholder="Enter instructions for the agent"
+              rows="4"
+              required
+            ></textarea>
+            <p class="help-text">Detailed instructions that guide the agent's behavior</p>
+          </div>
+          
+          <div class="form-group">
+            <label for="aiProvider">AI Provider (Required)</label>
+            <select 
+              id="aiProvider" 
+              v-model="formData.aiProvider" 
+              required
+            >
+              <option value="">Select AI Provider</option>
+              <option value="OpenAI">OpenAI</option>
+              <option value="Anthropic">Anthropic</option>
+            </select>
+            <p class="help-text">The AI provider that will power this agent</p>
+          </div>
+          
+          <div class="form-group">
             <label for="metadata">Metadata (JSON)</label>
             <textarea 
               id="metadata" 
@@ -119,7 +145,7 @@
               placeholder='{"key": "value"}'
               rows="5"
             ></textarea>
-            <p class="help-text">Optional JSON metadata for agent configuration</p>
+            <p class="help-text">Optional JSON metadata for the agent</p>
           </div>
           
           <div class="modal-actions">
@@ -202,6 +228,8 @@ const showDeleteModal = ref(false)
 const formData = ref({
   name: '',
   description: '',
+  instructions: '',
+  aiProvider: '',
   metadataJson: '{}'
 })
 
@@ -272,26 +300,31 @@ async function fetchAssignedUsers() {
 
 async function updateAgent() {
   try {
-    let metadata = {}
-    try {
-      metadata = JSON.parse(formData.value.metadataJson)
-    } catch (e) {
-      alert('Invalid JSON in metadata field')
-      return
-    }
+    const metadata = JSON.parse(formData.value.metadataJson)
     
-    const agentData = {
+    const updatedAgent = {
       name: formData.value.name,
       description: formData.value.description,
+      instructions: formData.value.instructions,
+      aiProvider: formData.value.aiProvider,
       metadata: metadata
     }
     
-    await agentsApi.update(agentId.value, agentData)
-    await fetchAgentData()
+    await agentsApi.update(agent.value.id, updatedAgent)
+    
+    // Update local agent data
+    agent.value = {
+      ...agent.value,
+      name: updatedAgent.name,
+      description: updatedAgent.description,
+      instructions: updatedAgent.instructions,
+      aiProvider: updatedAgent.aiProvider,
+      metadata: metadata
+    }
+    
     showEditModal.value = false
   } catch (error) {
     console.error('Error updating agent:', error)
-    alert('Error updating agent: ' + error.message)
   }
 }
 
@@ -343,6 +376,18 @@ async function removeUser(user) {
       alert('Error removing user: ' + error.message)
     }
   }
+}
+
+const openEditModal = () => {
+  // Populate form data with current agent values
+  formData.value = {
+    name: agent.value.name || '',
+    description: agent.value.description || '',
+    instructions: agent.value.instructions || '',
+    aiProvider: agent.value.aiProvider || '',
+    metadataJson: agent.value.metadata ? JSON.stringify(agent.value.metadata, null, 2) : '{}'
+  }
+  showEditModal.value = true
 }
 
 const closeUserModal = () => {
