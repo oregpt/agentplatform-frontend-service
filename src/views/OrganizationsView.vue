@@ -93,19 +93,19 @@
               placeholder="Enter organization name"
             />
           </div>
-          
           <div class="form-group">
-            <label for="description">Description (Optional)</label>
+            <label for="description">Description</label>
             <textarea 
               id="description" 
               v-model="formData.description" 
+              rows="4" 
               placeholder="Enter organization description"
-              rows="3"
             ></textarea>
           </div>
-          
           <div class="modal-actions">
-            <button type="button" @click="closeModal" class="cancel-btn">Cancel</button>
+            <button type="button" @click="closeModal" class="cancel-btn">
+              Cancel
+            </button>
             <button type="submit" class="submit-btn">
               {{ showEditModal ? 'Update' : 'Create' }}
             </button>
@@ -138,25 +138,28 @@ import ErrorMessage from '../components/ErrorMessage.vue'
 import ContentCard from '../components/ContentCard.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 
-// Inject notification system
-const notify = inject('notify')
-
+// State
 const organizations = ref([])
-const loading = ref(true)
+const loading = ref(false)
 const error = ref('')
 const searchQuery = ref('')
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteModal = ref(false)
-const selectedOrg = ref({})
 const formData = ref({
   name: '',
   description: ''
 })
+const selectedOrg = ref({})
 
-// Computed property for filtered organizations
+// Notifications
+const notify = inject('notify', null)
+
+// Computed
 const filteredOrganizations = computed(() => {
-  if (!searchQuery.value) return organizations.value
+  if (!searchQuery.value) {
+    return organizations.value
+  }
   
   const query = searchQuery.value.toLowerCase()
   return organizations.value.filter(org => {
@@ -251,11 +254,11 @@ function confirmDelete(org) {
 async function createOrganization() {
   try {
     await organizationsApi.create(formData.value)
-    await fetchOrganizations()
-    closeModal()
     if (notify) {
-      notify.success(`Organization "${formData.value.name}" created successfully`)
+      notify.success('Organization created successfully')
     }
+    closeModal()
+    await fetchOrganizations()
   } catch (err) {
     console.error('Error creating organization:', err)
     if (notify) {
@@ -267,11 +270,11 @@ async function createOrganization() {
 async function updateOrganization() {
   try {
     await organizationsApi.update(selectedOrg.value.id, formData.value)
-    await fetchOrganizations()
-    closeModal()
     if (notify) {
-      notify.success(`Organization "${formData.value.name}" updated successfully`)
+      notify.success('Organization updated successfully')
     }
+    closeModal()
+    await fetchOrganizations()
   } catch (err) {
     console.error('Error updating organization:', err)
     if (notify) {
@@ -283,11 +286,11 @@ async function updateOrganization() {
 async function deleteOrganization() {
   try {
     await organizationsApi.delete(selectedOrg.value.id)
-    await fetchOrganizations()
-    showDeleteModal.value = false
     if (notify) {
-      notify.success(`Organization "${selectedOrg.value.name}" deleted successfully`)
+      notify.success('Organization deleted successfully')
     }
+    showDeleteModal.value = false
+    await fetchOrganizations()
   } catch (err) {
     console.error('Error deleting organization:', err)
     if (notify) {
