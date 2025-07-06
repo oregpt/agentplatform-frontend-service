@@ -206,17 +206,59 @@ async function fetchOrganizations() {
     // For each organization, fetch agent and user counts
     const orgsWithCounts = await Promise.all(orgs.map(async (org) => {
       try {
+        console.log(`Fetching counts for organization ${org.id} (${org.name})`)
+        
         // Fetch agents count for this organization
-        const agentsResponse = await agentsApi.getAll({ organization_id: org.id })
-        const agentsCount = Array.isArray(agentsResponse.data.agents) ? 
-                          agentsResponse.data.agents.length : 
-                          (Array.isArray(agentsResponse.data) ? agentsResponse.data.length : 0)
+        // Pass the organization ID directly as a parameter, not as an object
+        console.log(`Making API call to get agents for org ${org.id}`)
+        const agentsResponse = await agentsApi.getAll(org.id)
+        console.log(`Agents API response for org ${org.id}:`, agentsResponse)
+        console.log(`Agents response data type:`, typeof agentsResponse.data, Array.isArray(agentsResponse.data))
+        
+        let agentsCount = 0
+        if (agentsResponse && agentsResponse.data) {
+          // Log the exact structure of the response data
+          console.log(`Agents response data structure for org ${org.id}:`, JSON.stringify(agentsResponse.data).substring(0, 200) + '...')
+          
+          if (Array.isArray(agentsResponse.data.agents)) {
+            agentsCount = agentsResponse.data.agents.length
+            console.log(`Found ${agentsCount} agents in response.data.agents array`)
+          } else if (Array.isArray(agentsResponse.data)) {
+            agentsCount = agentsResponse.data.length
+            console.log(`Found ${agentsCount} agents in response.data array`)
+          } else {
+            console.log(`Could not determine agents count from response:`, agentsResponse.data)
+          }
+        } else {
+          console.log(`No data in agents response for org ${org.id}`)
+        }
         
         // Fetch users count for this organization
-        const usersResponse = await usersApi.getAll({ organization_id: org.id })
-        const usersCount = Array.isArray(usersResponse.data.users) ? 
-                        usersResponse.data.users.length : 
-                        (Array.isArray(usersResponse.data) ? usersResponse.data.length : 0)
+        // Pass the organization ID directly as a parameter, not as an object
+        console.log(`Making API call to get users for org ${org.id}`)
+        const usersResponse = await usersApi.getAll(org.id)
+        console.log(`Users API response for org ${org.id}:`, usersResponse)
+        console.log(`Users response data type:`, typeof usersResponse.data, Array.isArray(usersResponse.data))
+        
+        let usersCount = 0
+        if (usersResponse && usersResponse.data) {
+          // Log the exact structure of the response data
+          console.log(`Users response data structure for org ${org.id}:`, JSON.stringify(usersResponse.data).substring(0, 200) + '...')
+          
+          if (Array.isArray(usersResponse.data.users)) {
+            usersCount = usersResponse.data.users.length
+            console.log(`Found ${usersCount} users in response.data.users array`)
+          } else if (Array.isArray(usersResponse.data)) {
+            usersCount = usersResponse.data.length
+            console.log(`Found ${usersCount} users in response.data array`)
+          } else {
+            console.log(`Could not determine users count from response:`, usersResponse.data)
+          }
+        } else {
+          console.log(`No data in users response for org ${org.id}`)
+        }
+        
+        console.log(`Organization ${org.id} (${org.name}) has ${agentsCount} agents and ${usersCount} users`)
         
         return {
           ...org,
