@@ -258,18 +258,41 @@ onMounted(async () => {
 async function fetchOrganizations() {
   try {
     const response = await organizationsApi.getAll()
-    organizations.value = response.data.organizations || []
     
-    // Set default organization to first real organization if available
-    if (organizations.value.length > 0) {
-      selectedOrgId.value = organizations.value[0].id
+    if (response.data && response.data.organizations) {
+      // Store real organizations first, without 'All'
+      const realOrgs = response.data.organizations
+      
+      // Set default organization to first real organization if available
+      if (realOrgs.length > 0) {
+        selectedOrgId.value = realOrgs[0].id
+        console.log('Setting default organization ID to:', selectedOrgId.value)
+      }
+      
+      // Add 'All' option if user has access to multiple organizations
+      if (realOrgs.length > 1) {
+        organizations.value = [{ id: 'All', name: 'All Organizations' }, ...realOrgs]
+      } else {
+        organizations.value = [...realOrgs]
+      }
+    } else if (Array.isArray(response.data)) {
+      const realOrgs = response.data
+      
+      // Set default organization to first real organization if available
+      if (realOrgs.length > 0) {
+        selectedOrgId.value = realOrgs[0].id
+        console.log('Setting default organization ID to:', selectedOrgId.value)
+      }
+      
+      // Add 'All' option if user has access to multiple organizations
+      if (realOrgs.length > 1) {
+        organizations.value = [{ id: 'All', name: 'All Organizations' }, ...realOrgs]
+      } else {
+        organizations.value = [...realOrgs]
+      }
+    } else {
+      organizations.value = []
     }
-    
-    // Add 'All' option at the beginning AFTER setting the default
-    organizations.value.unshift({
-      id: 'All',
-      name: 'All Organizations'
-    })
     
     console.log('Organizations loaded:', organizations.value, 'Selected org:', selectedOrgId.value)
   } catch (err) {

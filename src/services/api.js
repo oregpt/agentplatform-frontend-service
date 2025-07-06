@@ -48,12 +48,41 @@ export const filesApi = {
     const url = orgId ? `/files/organization?organization_id=${orgId}` : '/files/organization'
     return api.get(url)
   },
+  // Add missing function for getting files by agent
+  getAllByAgent: (agentId) => {
+    // Ensure agentId is a string
+    const id = agentId ? String(agentId) : ''
+    return api.get(`/files/agent/${id}`)
+  },
   getById: (id) => api.get(`/files/${id}`),
   upload: (agentId, formData) => api.post(`/files/agent/${agentId}`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
   }),
+  // Add missing function for uploading files to an agent
+  uploadAgentFile: (agentId, file, onProgress) => {
+    // Create a FormData object
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    // Return a promise
+    return new Promise((resolve, reject) => {
+      api.post(`/files/agent/${agentId}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && typeof onProgress === 'function') {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            onProgress(percentCompleted)
+          }
+        }
+      })
+      .then(response => resolve(response))
+      .catch(error => reject(error))
+    })
+  },
   download: (id) => api.get(`/files/${id}/download`, { responseType: 'blob' }),
   delete: (id) => api.delete(`/files/${id}`)
 }

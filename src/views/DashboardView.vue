@@ -209,20 +209,19 @@ async function fetchData() {
       loading.value.files = false
     }
     
-    // Fetch users for the current organization
+    // Fetch all users for the current user (across all their organizations)
     loading.value.users = true
     try {
-      // Use the organization ID from the auth store if available
-      const organizationId = authStore.organizationId || ''
-      console.log('Fetching users for organization:', organizationId)
+      // Pass 'All' to get all users the current user has access to
+      console.log('Fetching all users the current user has access to')
       
-      const usersResponse = await usersApi.getAll(organizationId)
+      const usersResponse = await usersApi.getAll('All')
       // Ensure users.value is always an array
       const responseData = usersResponse.data || {}
       users.value = Array.isArray(responseData.users) ? responseData.users : 
                     Array.isArray(responseData) ? responseData : []
       
-      console.log('Users loaded:', users.value.length, 'for organization:', organizationId, 'Raw response:', usersResponse.data)
+      console.log('Users loaded:', users.value.length, 'Raw response:', usersResponse.data)
     } catch (usersError) {
       console.error('Failed to load users:', usersError)
       users.value = [] // Initialize as empty array on error

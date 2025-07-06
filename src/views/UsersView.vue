@@ -284,21 +284,38 @@ async function fetchOrganizations() {
     const response = await organizationsApi.getAll(params)
     
     if (response.data && response.data.organizations) {
-      organizations.value = response.data.organizations
+      // Store real organizations first, without 'All'
+      const realOrgs = response.data.organizations
+      
+      // Set default organization to first real organization if available
+      if (realOrgs.length > 0) {
+        selectedOrgId.value = realOrgs[0].id
+        console.log('Setting default organization ID to:', selectedOrgId.value)
+      }
+      
+      // Add 'All' option if user has access to multiple organizations
+      if (realOrgs.length > 1) {
+        organizations.value = [{ id: 'All', name: 'All Organizations' }, ...realOrgs]
+      } else {
+        organizations.value = [...realOrgs]
+      }
     } else if (Array.isArray(response.data)) {
-      organizations.value = response.data
+      const realOrgs = response.data
+      
+      // Set default organization to first real organization if available
+      if (realOrgs.length > 0) {
+        selectedOrgId.value = realOrgs[0].id
+        console.log('Setting default organization ID to:', selectedOrgId.value)
+      }
+      
+      // Add 'All' option if user has access to multiple organizations
+      if (realOrgs.length > 1) {
+        organizations.value = [{ id: 'All', name: 'All Organizations' }, ...realOrgs]
+      } else {
+        organizations.value = [...realOrgs]
+      }
     } else {
       organizations.value = []
-    }
-    
-    // Set default organization to first real organization if available
-    if (organizations.value.length > 0) {
-      selectedOrgId.value = organizations.value[0].id
-    }
-    
-    // Add 'All' option if user has access to multiple organizations
-    if (organizations.value.length > 1) {
-      organizations.value.unshift({ id: 'All', name: 'All Organizations' })
     }
     
     console.log('Organizations loaded:', organizations.value, 'Selected org:', selectedOrgId.value)
@@ -321,9 +338,23 @@ async function fetchUsers() {
   try {
     console.log('Fetching users for organization:', selectedOrgId.value)
     
-    // Use direct string parameter like the dashboard does
-    // Only pass organization ID if not 'All'
-    const organizationId = selectedOrgId.value !== 'All' ? selectedOrgId.value : ''
+    // IMPORTANT: When 'All' is selected, we need to pass a valid organization ID
+    // The backend has two different paths:
+    // 1. With organization_id: Calls ListUserOrgs which works correctly
+    // 2. Without organization_id: Calls ListUsers which has an issue with JSON decoding
+    
+    // Always pass an organization ID, even when 'All' is selected
+    let organizationId = selectedOrgId.value
+    
+    // If 'All' is selected, use the first real organization ID
+    if (organizationId === 'All' && organizations.value.length > 1) {
+      // Find the first non-'All' organization
+      const firstRealOrg = organizations.value.find(org => org.id !== 'All')
+      if (firstRealOrg) {
+        organizationId = firstRealOrg.id
+      }
+    }
+    
     console.log('Using organizationId for API call:', organizationId)
     
     const response = await usersApi.getAll(organizationId)
