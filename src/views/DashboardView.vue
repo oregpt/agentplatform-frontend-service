@@ -143,8 +143,12 @@ async function fetchData() {
     loading.value.organizations = true
     try {
       const organizationsResponse = await organizationsApi.getAll()
-      organizations.value = organizationsResponse.data.organizations || organizationsResponse.data || []
-      console.log('Organizations loaded:', organizations.value.length)
+      // Ensure organizations.value is always an array
+      const responseData = organizationsResponse.data || {}
+      organizations.value = Array.isArray(responseData.organizations) ? responseData.organizations : 
+                            Array.isArray(responseData) ? responseData : []
+      
+      console.log('Organizations loaded:', organizations.value, 'Raw response:', organizationsResponse.data)
       
       // If we have organizations, use the first one for files
       if (organizations.value.length > 0) {
@@ -153,7 +157,7 @@ async function fetchData() {
     } catch (orgError) {
       console.warn('Failed to load organizations:', orgError)
       // Set a default organization for development
-      organizations.value = [{ id: 'dev-org-1', name: 'Development Organization' }]
+      organizations.value = []
     } finally {
       loading.value.organizations = false
     }
@@ -162,14 +166,17 @@ async function fetchData() {
     loading.value.agents = true
     try {
       const agentsResponse = await agentsApi.getAll()
-      agents.value = agentsResponse.data.agents || agentsResponse.data || []
+      // Ensure agents.value is always an array
+      const responseData = agentsResponse.data || {}
+      agents.value = Array.isArray(responseData.agents) ? responseData.agents : 
+                     Array.isArray(responseData) ? responseData : []
+      
+      console.log('Agents loaded:', agents.value, 'Raw response:', agentsResponse.data)
       
       // Set current agent ID for files view if we have agents
       if (agents.value.length > 0) {
         currentAgentId.value = agents.value[0].id
       }
-      
-      console.log('Agents loaded:', agents.value.length)
     } catch (agentsError) {
       console.error('Failed to load agents:', agentsError)
       agents.value = [] // Initialize as empty array on error
@@ -182,8 +189,12 @@ async function fetchData() {
     try {
       if (currentAgentId.value) {
         const filesResponse = await filesApi.getAll(currentAgentId.value)
-        files.value = filesResponse.data.files || []
-        console.log('Files loaded:', files.value.length)
+        // Ensure files.value is always an array
+        const responseData = filesResponse.data || {}
+        files.value = Array.isArray(responseData.files) ? responseData.files : 
+                      Array.isArray(responseData) ? responseData : []
+        
+        console.log('Files loaded:', files.value, 'Raw response:', filesResponse.data)
       } else {
         files.value = []
       }
@@ -198,8 +209,12 @@ async function fetchData() {
     loading.value.users = true
     try {
       const usersResponse = await usersApi.getAll()
-      users.value = usersResponse.data.users || usersResponse.data || []
-      console.log('Users loaded:', users.value.length)
+      // Ensure users.value is always an array
+      const responseData = usersResponse.data || {}
+      users.value = Array.isArray(responseData.users) ? responseData.users : 
+                    Array.isArray(responseData) ? responseData : []
+      
+      console.log('Users loaded:', users.value, 'Raw response:', usersResponse.data)
     } catch (usersError) {
       console.error('Failed to load users:', usersError)
       users.value = [] // Initialize as empty array on error
