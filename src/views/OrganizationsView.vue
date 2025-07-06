@@ -279,15 +279,28 @@ async function createOrganization() {
         
         // Create payload to add current user to organization
         const userOrgPayload = {
+          id: authStore.user.uid, // Use Firebase UID as user ID
           name: authStore.user.displayName || authStore.user.email,
           email: authStore.user.email,
           role: 'admin', // Set as admin
           organizationId: newOrgId
         }
         
-        // Add the current user to the organization
-        await usersApi.update(authStore.user.uid, userOrgPayload)
-        console.log('Current user added as admin to the new organization')
+        try {
+          // First try to create a new user
+          await usersApi.create(userOrgPayload)
+          console.log('Created new user entry with organization association')
+        } catch (createErr) {
+          console.log('User creation failed, trying to update:', createErr)
+          
+          // If create fails (user might already exist), try to update
+          await usersApi.update(authStore.user.uid, userOrgPayload)
+          console.log('Updated existing user with new organization association')
+        }
+        
+        // Set the new organization as active
+        await authStore.setOrganization(newOrgId)
+        console.log('Set new organization as active')
         
         // Refresh user organizations in auth store
         await authStore.fetchUserOrganizations()
