@@ -188,20 +188,20 @@ async function fetchData() {
       loading.value.agents = false
     }
     
-    // Fetch files
+    // Fetch files for the current organization
     loading.value.files = true
     try {
-      if (currentAgentId.value) {
-        const filesResponse = await filesApi.getAll(currentAgentId.value)
-        // Ensure files.value is always an array
-        const responseData = filesResponse.data || {}
-        files.value = Array.isArray(responseData.files) ? responseData.files : 
-                      Array.isArray(responseData) ? responseData : []
-        
-        console.log('Files loaded:', files.value, 'Raw response:', filesResponse.data)
-      } else {
-        files.value = []
-      }
+      // Use the organization ID from the auth store if available
+      const organizationId = authStore.organizationId || ''
+      console.log('Fetching files for organization:', organizationId)
+      
+      const filesResponse = await filesApi.getAllByOrganization(organizationId)
+      // Ensure files.value is always an array
+      const responseData = filesResponse.data || {}
+      files.value = Array.isArray(responseData.files) ? responseData.files : 
+                    Array.isArray(responseData) ? responseData : []
+      
+      console.log('Files loaded:', files.value.length, 'for organization:', organizationId, 'Raw response:', filesResponse.data)
     } catch (filesError) {
       console.error('Failed to load files:', filesError)
       files.value = [] // Initialize as empty array on error

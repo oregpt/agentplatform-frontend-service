@@ -39,6 +39,11 @@ export const agentsApi = {
 // Files API
 export const filesApi = {
   getAll: (agentId) => api.get(`/files/agent/${agentId}`),
+  getAllByOrganization: (organizationId) => {
+    // If organizationId is provided, add it as a query parameter
+    const url = organizationId ? `/files/organization?organization_id=${organizationId}` : '/files/organization'
+    return api.get(url)
+  },
   getById: (id) => api.get(`/files/${id}`),
   upload: (agentId, formData) => api.post(`/files/agent/${agentId}`, formData, {
     headers: {
