@@ -280,8 +280,55 @@ async function fetchUsers() {
   loading.value = true
   error.value = null
   try {
+    console.log('Fetching users for organization:', selectedOrgId.value)
     const response = await usersApi.getAll(selectedOrgId.value)
-    users.value = response.data
+    console.log('Users API response:', response)
+    
+    // Check if response has the expected structure
+    if (response && response.data) {
+      // Extract users from the response
+      let usersList = [];
+      if (Array.isArray(response.data.users)) {
+        usersList = response.data.users;
+      } else if (Array.isArray(response.data)) {
+        usersList = response.data;
+      }
+      
+      // For each user, fetch agent counts
+      const usersWithCounts = await Promise.all(usersList.map(async (user) => {
+        try {
+          // Fetch agent assignments for this user
+          const agentsResponse = await userAgentApi.getUserAgents(user.id);
+          let agentsCount = 0;
+          
+          if (agentsResponse && agentsResponse.data) {
+            if (Array.isArray(agentsResponse.data.agents)) {
+              agentsCount = agentsResponse.data.agents.length;
+            } else if (Array.isArray(agentsResponse.data)) {
+              agentsCount = agentsResponse.data.length;
+            }
+          }
+          
+          return {
+            ...user,
+            agentsCount
+          };
+        } catch (err) {
+          console.error(`Error fetching agent counts for user ${user.id}:`, err);
+          return {
+            ...user,
+            agentsCount: 0
+          };
+        }
+      }));
+      
+      users.value = usersWithCounts;
+      console.log('Users loaded with counts:', users.value);
+    } else {
+      console.error('Unexpected API response format:', response)
+      error.value = 'Unexpected API response format'
+      users.value = [];
+    }
   } catch (err) {
     error.value = 'Failed to load users. Please try again.'
     notify({
@@ -290,6 +337,7 @@ async function fetchUsers() {
       details: err.message
     })
     console.error('Error fetching users:', err)
+    users.value = [];
   } finally {
     loading.value = false
   }
