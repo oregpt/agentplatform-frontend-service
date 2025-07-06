@@ -48,11 +48,13 @@ export const filesApi = {
     const url = orgId ? `/files/organization?organization_id=${orgId}` : '/files/organization'
     return api.get(url)
   },
-  // Add missing function for getting files by agent
-  getAllByAgent: (agentId) => {
-    // Ensure agentId is a string
-    const id = agentId ? String(agentId) : ''
-    return api.get(`/files/agent/${id}`)
+  // Get all files for an agent with organization ID
+  getAllByAgent: (agentId, organizationId) => {
+    const headers = {}
+    if (organizationId) {
+      headers['X-Organization-ID'] = organizationId
+    }
+    return api.get(`/files/agent/${agentId}`, { headers })
   },
   getById: (id) => api.get(`/files/${id}`),
   upload: (agentId, formData) => api.post(`/files/agent/${agentId}`, formData, {
@@ -61,22 +63,27 @@ export const filesApi = {
     }
   }),
   // Add missing function for uploading files to an agent
-  uploadAgentFile: (agentId, file, onProgress) => {
+  uploadAgentFile: (agentId, file, onProgress, organizationId) => {
     // Create a FormData object
     const formData = new FormData()
     formData.append('file', file)
     
+    // Include organization ID in the request headers if provided
+    const headers = {
+      'Content-Type': 'multipart/form-data'
+    }
+    
+    if (organizationId) {
+      headers['X-Organization-ID'] = organizationId
+    }
+    
     // Return a promise
     return new Promise((resolve, reject) => {
       api.post(`/files/agent/${agentId}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
+        headers,
         onUploadProgress: (progressEvent) => {
-          if (onProgress && typeof onProgress === 'function') {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            onProgress(percentCompleted)
-          }
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          if (onProgress) onProgress(percentCompleted)
         }
       })
       .then(response => resolve(response))

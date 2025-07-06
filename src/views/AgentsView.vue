@@ -321,11 +321,25 @@ async function fetchAgents() {
       // For each agent, fetch file and user counts
       const agentsWithCounts = await Promise.all(agentsList.map(async (agent) => {
         try {
-          // Fetch files count for this agent
-          const filesResponse = await filesApi.getAllByAgent(agent.id);
-          const filesCount = Array.isArray(filesResponse.data.files) ? 
+          // Only fetch file counts for agents that belong to the current organization
+          // This prevents 403 errors when trying to access agents from other organizations
+          let filesCount = 0;
+          
+          // If we're viewing a specific organization (not 'All'), only fetch for that org's agents
+          if (selectedOrgId.value !== 'All') {
+            try {
+              // Fetch files count for this agent with the organization ID
+              const filesResponse = await filesApi.getAllByAgent(agent.id, selectedOrgId.value);
+              filesCount = Array.isArray(filesResponse.data.files) ? 
                            filesResponse.data.files.length : 
                            (Array.isArray(filesResponse.data) ? filesResponse.data.length : 0);
+            } catch (fileErr) {
+              // If we get a 403, the agent doesn't belong to this organization
+              // Just set filesCount to 0 and continue
+              console.error(`Error fetching files for agent ${agent.id}:`, fileErr);
+              filesCount = 0;
+            }
+          }
           
           // For user count, we would need an API endpoint to get users by agent
           // Since we don't have that directly, we'll set it to 0 for now
@@ -416,6 +430,11 @@ function showNotification(type, message, details = '') {
     // First, log the message to console regardless of notification system
     console.log(`${type}: ${message}`, details)
     
+    // For now, just log to console and don't try to use the notification system
+    // This prevents the TypeError: t.value.addNotification is not a function error
+    
+    // If we want to re-enable notifications in the future, we can uncomment this code:
+    /*
     // Check if notify exists at all
     if (!notify) {
       return
@@ -466,6 +485,7 @@ function showNotification(type, message, details = '') {
       })
       return
     }
+    */
   } catch (notifyErr) {
     console.error('Error showing notification:', notifyErr)
   }
@@ -587,10 +607,21 @@ async function uploadAgentFiles(agentId) {
     isUploading.value = true
     uploadError.value = ''
     
+    // Get the organization ID from the form or selected organization
+    let orgId = formData.value.organizationId
+    if (!orgId && selectedOrgId.value !== 'All') {
+      orgId = selectedOrgId.value
+    } else if (!orgId) {
+      // Fallback to auth store organization ID
+      orgId = authStore.organizationId
+    }
+    
+    console.log('Uploading files for agent', agentId, 'with organization ID:', orgId)
+    
     for (const file of uploadedFiles.value) {
       await filesApi.uploadAgentFile(agentId, file, (progress) => {
         uploadProgress.value = progress
-      })
+      }, orgId)
     }
     
     isUploading.value = false
