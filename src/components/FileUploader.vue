@@ -42,6 +42,7 @@
       </div>
       <div class="upload-actions">
         <button 
+          type="button"
           @click="triggerFileInput" 
           class="browse-button"
           :disabled="disabled"

@@ -291,10 +291,17 @@ async function fetchOrganizations() {
       organizations.value = []
     }
     
+    // Set default organization to first real organization if available
+    if (organizations.value.length > 0) {
+      selectedOrgId.value = organizations.value[0].id
+    }
+    
     // Add 'All' option if user has access to multiple organizations
     if (organizations.value.length > 1) {
       organizations.value.unshift({ id: 'All', name: 'All Organizations' })
     }
+    
+    console.log('Organizations loaded:', organizations.value, 'Selected org:', selectedOrgId.value)
   } catch (err) {
     error.value = 'Failed to load organizations. Please try again.'
     notify({

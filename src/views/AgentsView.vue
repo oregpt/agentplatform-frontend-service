@@ -260,16 +260,18 @@ async function fetchOrganizations() {
     const response = await organizationsApi.getAll()
     organizations.value = response.data.organizations || []
     
-    // Add 'All' option at the beginning
+    // Set default organization to first real organization if available
+    if (organizations.value.length > 0) {
+      selectedOrgId.value = organizations.value[0].id
+    }
+    
+    // Add 'All' option at the beginning AFTER setting the default
     organizations.value.unshift({
       id: 'All',
       name: 'All Organizations'
     })
     
-    // If there's only one real organization (plus the 'All' option), auto-select it
-    if (organizations.value.length === 2) {
-      selectedOrgId.value = organizations.value[1].id
-    }
+    console.log('Organizations loaded:', organizations.value, 'Selected org:', selectedOrgId.value)
   } catch (err) {
     console.error('Error fetching organizations:', err)
   }
@@ -491,16 +493,34 @@ async function createAgent() {
       return
     }
     
-    // Validate organization selection
+    // Always use a valid organization ID
+    // First priority: form's organization ID if specified
+    // Second priority: selected organization in dropdown if not 'All'
+    // Third priority: first organization in the list
+    // Fourth priority: auth store organization ID
     let orgId = formData.value.organizationId
-    if (selectedOrgId.value !== 'All') {
-      // If a specific org is selected in the main dropdown, use that
+    
+    if (!orgId && selectedOrgId.value !== 'All') {
+      // If no org in form but a specific org is selected in dropdown
       orgId = selectedOrgId.value
+    } else if (!orgId && organizations.value.length > 1) {
+      // If still no org, use first real org (index 1 because 'All' is at index 0)
+      orgId = organizations.value[1].id
+    } else if (!orgId && organizations.value.length > 0) {
+      // If still no org and no 'All' option, use first org
+      orgId = organizations.value[0].id
     } else if (!orgId) {
-      // If 'All' is selected but no org is selected in the form
-      showNotification('error', 'Missing organization', 'Please select an organization for this agent')
+      // If still no org, use auth store org ID
+      orgId = authStore.organizationId
+    }
+    
+    // Final validation - we must have an organization ID and it can't be 'All'
+    if (!orgId || orgId === 'All') {
+      showNotification('error', 'Missing organization', 'Please select a valid organization for this agent')
       return
     }
+    
+    console.log('Creating agent with organization ID:', orgId)
     
     // Validate JSON metadata
     try {
@@ -515,10 +535,11 @@ async function createAgent() {
       description: formData.value.description,
       instructions: formData.value.instructions,
       ai_provider: formData.value.aiProvider,
-      organization_id: orgId,
+      organization_id: String(orgId), // Ensure it's a string
       metadata: JSON.parse(formData.value.metadata)
     }
 
+    console.log('Sending agent creation request with data:', agentData)
     const response = await agentsApi.create(agentData)
     const createdAgentId = response.data.id
     
