@@ -314,13 +314,12 @@ async function fetchUsers() {
   try {
     console.log('Fetching users for organization:', selectedOrgId.value)
     
-    // Prepare request parameters
-    const params = {}
-    if (selectedOrgId.value !== 'All') {
-      params.organization_id = selectedOrgId.value
-    }
+    // Use direct string parameter like the dashboard does
+    // Only pass organization ID if not 'All'
+    const organizationId = selectedOrgId.value !== 'All' ? selectedOrgId.value : ''
+    console.log('Using organizationId for API call:', organizationId)
     
-    const response = await usersApi.getAll(params)
+    const response = await usersApi.getAll(organizationId)
     console.log('Users API response:', response)
     
     // Check if response has the expected structure
