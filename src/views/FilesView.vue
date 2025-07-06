@@ -22,24 +22,34 @@
       </div>
     </div>
     
-    <div v-else class="files-list">
-      <div v-for="file in files" :key="file.id" class="file-card">
-        <div class="file-info">
-          <h3>{{ file.name }}</h3>
-          <p class="file-meta">
-            {{ formatFileSize(file.sizeBytes) }} • 
-            {{ formatDate(file.createdAt) }}
-          </p>
-        </div>
-        <div class="file-actions">
-          <button @click="downloadFile(file)" class="download-btn" title="Download">
-            <i class="mdi mdi-download"></i>
-          </button>
-          <button @click="confirmDelete(file)" class="delete-btn" title="Delete">
-            <i class="mdi mdi-delete"></i>
-          </button>
-        </div>
-      </div>
+    <div v-else class="files-table-container">
+      <table class="files-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Size</th>
+            <th>Type</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="file in files" :key="file.id" class="file-row">
+            <td class="file-name">{{ file.name }}</td>
+            <td>{{ formatFileSize(file.sizeBytes) }}</td>
+            <td>{{ file.contentType || 'text/markdown' }}</td>
+            <td>{{ formatDate(file.createdAt) }}</td>
+            <td class="file-actions">
+              <button @click="downloadFile(file)" class="action-btn download-btn" title="Download">
+                <i class="mdi mdi-download"></i>
+              </button>
+              <button @click="confirmDelete(file)" class="action-btn delete-btn" title="Delete">
+                <span class="delete-x">X</span>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- Upload Modal -->
@@ -346,20 +356,38 @@ async function deleteFile() {
   margin-bottom: 10px;
 }
 
-.files-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-}
-
-.file-card {
+.files-table-container {
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  overflow: auto;
+}
+
+.files-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.files-table th,
+.files-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.files-table th {
+  background-color: #f8f9fa;
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+.files-table tr:hover {
+  background-color: #f8f9fa;
+}
+
+.file-name {
+  font-weight: 500;
+  color: #2c3e50;
 }
 
 .file-info h3 {
@@ -377,16 +405,20 @@ async function deleteFile() {
 .file-actions {
   display: flex;
   gap: 10px;
+  justify-content: flex-end;
 }
 
-.download-btn, .delete-btn {
+.action-btn {
   background-color: transparent;
   border: none;
   font-size: 1.2rem;
   cursor: pointer;
   padding: 5px;
   border-radius: 4px;
-  transition: background-color 0.3s;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .download-btn {
@@ -399,10 +431,16 @@ async function deleteFile() {
 
 .delete-btn {
   color: #e74c3c;
+  font-weight: bold;
 }
 
 .delete-btn:hover {
   background-color: rgba(231, 76, 60, 0.1);
+}
+
+.delete-x {
+  font-weight: bold;
+  font-size: 1rem;
 }
 
 .modal-backdrop {
