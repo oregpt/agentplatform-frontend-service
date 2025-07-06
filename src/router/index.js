@@ -9,6 +9,7 @@ import OrganizationsView from '../views/OrganizationsView.vue'
 import AgentsView from '../views/AgentsView.vue'
 import AgentDetailView from '../views/AgentDetailView.vue'
 import FilesView from '../views/FilesView.vue'
+import FilesListView from '../views/FilesListView.vue'
 import UsersView from '../views/UsersView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 
@@ -61,8 +62,16 @@ const router = createRouter({
     },
     {
       path: '/agents/:agentId/files',
-      name: 'files',
+      name: 'agent-files',
       component: FilesView,
+      meta: {
+        requiresAuth: true
+      }
+    },
+    {
+      path: '/files',
+      name: 'files',
+      component: FilesListView,
       meta: {
         requiresAuth: true
       }
