@@ -182,7 +182,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted, inject, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { agentsApi, organizationsApi, filesApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
@@ -235,10 +235,24 @@ const filteredAgents = computed(() => {
 
 onMounted(async () => {
   await fetchOrganizations()
+  // Initialize with auth store organization ID or default to first organization
   if (authStore.organizationId) {
     selectedOrgId.value = authStore.organizationId
-    await fetchAgents()
+  } else if (organizations.value.length > 0) {
+    // Default to first organization if none selected
+    selectedOrgId.value = organizations.value[0].id
   }
+  
+  // Always fetch agents after organization is set
+  await fetchAgents()
+  
+  // Set up a watcher to detect changes in the auth store organization ID
+  watch(() => authStore.organizationId, (newOrgId) => {
+    if (newOrgId && newOrgId !== selectedOrgId.value) {
+      selectedOrgId.value = newOrgId
+      fetchAgents()
+    }
+  })
 })
 
 async function fetchOrganizations() {
