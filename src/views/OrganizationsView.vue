@@ -179,64 +179,66 @@ onMounted(async () => {
 
 // Fetch organizations with agent and user counts
 async function fetchOrganizations() {
+  loading.value = true
+  error.value = ''
+  
   try {
-    loading.value = true
-    error.value = ''
-    console.log('Fetching organizations...')
-    const response = await organizationsApi.getAll()
-    console.log('Organizations API response:', response)
-    
-    // Check if response has the expected structure
-    if (response && response.data) {
-      // Extract organizations from the response
-      let orgs = [];
-      if (Array.isArray(response.data.organizations)) {
-        orgs = response.data.organizations;
-      } else if (Array.isArray(response.data)) {
-        orgs = response.data;
-      }
-      
-      // For each organization, fetch agent and user counts
-      const orgsWithCounts = await Promise.all(orgs.map(async (org) => {
-        try {
-          // Fetch agents count for this organization
-          const agentsResponse = await agentsApi.getAll(org.id);
-          const agentsCount = Array.isArray(agentsResponse.data.agents) ? 
-                             agentsResponse.data.agents.length : 
-                             (Array.isArray(agentsResponse.data) ? agentsResponse.data.length : 0);
-          
-          // Fetch users count for this organization
-          const usersResponse = await usersApi.getAll(org.id);
-          const usersCount = Array.isArray(usersResponse.data.users) ? 
-                           usersResponse.data.users.length : 
-                           (Array.isArray(usersResponse.data) ? usersResponse.data.length : 0);
-          
-          return {
-            ...org,
-            agentsCount,
-            usersCount
-          };
-        } catch (err) {
-          console.error(`Error fetching counts for organization ${org.id}:`, err);
-          return {
-            ...org,
-            agentsCount: 0,
-            usersCount: 0
-          };
-        }
-      }));
-      
-      organizations.value = orgsWithCounts;
-      console.log('Organizations loaded with counts:', organizations.value);
-    } else {
-      console.error('Unexpected API response format:', response)
-      error.value = 'Unexpected API response format'
-      organizations.value = [];
+    // Include the organization_id in the request if it's set
+    const params = {}
+    if (authStore.organizationId && authStore.organizationId !== 'All') {
+      params.organization_id = authStore.organizationId
     }
+    
+    const response = await organizationsApi.getAll(params)
+    
+    if (!response.data) {
+      throw new Error('Invalid response format')
+    }
+    
+    // Extract organizations from the response
+    let orgs = []
+    if (Array.isArray(response.data.organizations)) {
+      orgs = response.data.organizations
+    } else if (Array.isArray(response.data)) {
+      orgs = response.data
+    }
+    
+    // For each organization, fetch agent and user counts
+    const orgsWithCounts = await Promise.all(orgs.map(async (org) => {
+      try {
+        // Fetch agents count for this organization
+        const agentsResponse = await agentsApi.getAll({ organization_id: org.id })
+        const agentsCount = Array.isArray(agentsResponse.data.agents) ? 
+                          agentsResponse.data.agents.length : 
+                          (Array.isArray(agentsResponse.data) ? agentsResponse.data.length : 0)
+        
+        // Fetch users count for this organization
+        const usersResponse = await usersApi.getAll({ organization_id: org.id })
+        const usersCount = Array.isArray(usersResponse.data.users) ? 
+                        usersResponse.data.users.length : 
+                        (Array.isArray(usersResponse.data) ? usersResponse.data.length : 0)
+        
+        return {
+          ...org,
+          agentsCount,
+          usersCount
+        }
+      } catch (err) {
+        console.error(`Error fetching counts for organization ${org.id}:`, err)
+        return {
+          ...org,
+          agentsCount: 0,
+          usersCount: 0
+        }
+      }
+    }))
+    
+    organizations.value = orgsWithCounts
+    console.log('Organizations loaded with counts:', organizations.value)
   } catch (err) {
     console.error('Error fetching organizations:', err)
     error.value = `Failed to load organizations: ${err.message || 'Unknown error'}`
-    organizations.value = [];
+    organizations.value = []
   } finally {
     loading.value = false
   }

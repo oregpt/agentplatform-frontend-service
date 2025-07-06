@@ -2,7 +2,7 @@
   <div class="agents-container">
     <div class="header">
       <h1>Agents</h1>
-      <button @click="showCreateModal = true" class="create-btn">Create Agent</button>
+      <button @click="openCreateModal()" class="create-btn">Create Agent</button>
     </div>
 
     <div class="organization-selector" v-if="organizations.length > 0">
@@ -28,7 +28,7 @@
     <div v-else-if="filteredAgents.length === 0" class="empty-state">
       <p v-if="searchQuery">No agents found matching "{{ searchQuery }}". Try a different search term.</p>
       <p v-else>No agents found in this organization. Create your first agent to get started.</p>
-      <button @click="showCreateModal = true" class="create-btn">Create Agent</button>
+      <button @click="openCreateModal()" class="create-btn">Create Agent</button>
     </div>
     
     <div v-else class="agents-list">
@@ -109,7 +109,24 @@
               <option value="OpenAI">OpenAI</option>
               <option value="Anthropic">Anthropic</option>
             </select>
-            <p class="help-text">The AI provider to use for this agent</p>
+            <p class="help-text">The AI provider that will power this agent</p>
+          </div>
+
+          <div class="form-group" v-if="!showEditModal">
+            <label for="organizationId">Organization (Required)</label>
+            <select 
+              id="organizationId" 
+              v-model="formData.organizationId" 
+              required
+              :disabled="selectedOrgId !== 'All'"
+            >
+              <option value="">Select Organization</option>
+              <option v-for="org in organizations" :key="org.id" :value="org.id">
+                {{ org.name }}
+              </option>
+            </select>
+            <p class="help-text" v-if="selectedOrgId !== 'All'">Using the currently selected organization</p>
+            <p class="help-text" v-else>Select which organization this agent belongs to</p>
           </div>
           
           <div class="form-group">
@@ -193,6 +210,7 @@ const formData = ref({
   description: '',
   instructions: '',
   aiProvider: '',
+  organizationId: '',
   metadata: '{}'
 })
 
@@ -226,14 +244,19 @@ onMounted(async () => {
 async function fetchOrganizations() {
   try {
     const response = await organizationsApi.getAll()
-    organizations.value = response.data
-  } catch (err) {
-    error.value = 'Failed to load organizations. Please try again.'
-    notify({
-      type: 'error',
-      message: 'Failed to load organizations',
-      details: err.message
+    organizations.value = response.data.organizations || []
+    
+    // Add 'All' option at the beginning
+    organizations.value.unshift({
+      id: 'All',
+      name: 'All Organizations'
     })
+    
+    // If there's only one real organization (plus the 'All' option), auto-select it
+    if (organizations.value.length === 2) {
+      selectedOrgId.value = organizations.value[1].id
+    }
+  } catch (err) {
     console.error('Error fetching organizations:', err)
   }
 }
@@ -398,6 +421,21 @@ async function createAgent() {
       return
     }
     
+    // Validate organization selection
+    let orgId = formData.value.organizationId
+    if (selectedOrgId.value !== 'All') {
+      // If a specific org is selected in the main dropdown, use that
+      orgId = selectedOrgId.value
+    } else if (!orgId) {
+      // If 'All' is selected but no org is selected in the form
+      notify({
+        type: 'error',
+        message: 'Missing organization',
+        details: 'Please select an organization for this agent'
+      })
+      return
+    }
+    
     // Validate JSON metadata
     try {
       JSON.parse(formData.value.metadata)
@@ -415,7 +453,7 @@ async function createAgent() {
       description: formData.value.description,
       instructions: formData.value.instructions,
       ai_provider: formData.value.aiProvider,
-      organization_id: selectedOrgId.value,
+      organization_id: orgId,
       metadata: JSON.parse(formData.value.metadata)
     }
 
@@ -583,12 +621,22 @@ function closeModal() {
   resetForm()
 }
 
+function openCreateModal() {
+  resetForm()
+  // If a specific organization is selected, pre-populate the form
+  if (selectedOrgId.value && selectedOrgId.value !== 'All') {
+    formData.value.organizationId = selectedOrgId.value
+  }
+  showCreateModal.value = true
+}
+
 function resetForm() {
   formData.value = {
     name: '',
     description: '',
     instructions: '',
     aiProvider: '',
+    organizationId: '',
     metadata: '{}'
   }
   

@@ -261,8 +261,26 @@ onMounted(async () => {
 
 async function fetchOrganizations() {
   try {
-    const response = await organizationsApi.getAll()
-    organizations.value = response.data
+    // Include the organization_id in the request if it's set
+    const params = {}
+    if (authStore.organizationId && authStore.organizationId !== 'All') {
+      params.organization_id = authStore.organizationId
+    }
+    
+    const response = await organizationsApi.getAll(params)
+    
+    if (response.data && response.data.organizations) {
+      organizations.value = response.data.organizations
+    } else if (Array.isArray(response.data)) {
+      organizations.value = response.data
+    } else {
+      organizations.value = []
+    }
+    
+    // Add 'All' option if user has access to multiple organizations
+    if (organizations.value.length > 1) {
+      organizations.value.unshift({ id: 'All', name: 'All Organizations' })
+    }
   } catch (err) {
     error.value = 'Failed to load organizations. Please try again.'
     notify({
@@ -281,7 +299,14 @@ async function fetchUsers() {
   error.value = null
   try {
     console.log('Fetching users for organization:', selectedOrgId.value)
-    const response = await usersApi.getAll(selectedOrgId.value)
+    
+    // Prepare request parameters
+    const params = {}
+    if (selectedOrgId.value !== 'All') {
+      params.organization_id = selectedOrgId.value
+    }
+    
+    const response = await usersApi.getAll(params)
     console.log('Users API response:', response)
     
     // Check if response has the expected structure
