@@ -85,6 +85,32 @@
               rows="3"
             ></textarea>
           </div>
+
+          <div class="form-group">
+            <label for="instructions">Instructions (Required)</label>
+            <textarea 
+              id="instructions" 
+              v-model="formData.instructions" 
+              placeholder="Enter instructions for the agent"
+              rows="4"
+              required
+            ></textarea>
+            <p class="help-text">Detailed instructions that guide the agent's behavior</p>
+          </div>
+          
+          <div class="form-group">
+            <label for="aiProvider">AI Provider (Required)</label>
+            <select 
+              id="aiProvider" 
+              v-model="formData.aiProvider" 
+              required
+            >
+              <option value="">Select AI Provider</option>
+              <option value="OpenAI">OpenAI</option>
+              <option value="Anthropic">Anthropic</option>
+            </select>
+            <p class="help-text">The AI provider to use for this agent</p>
+          </div>
           
           <div class="form-group">
             <label for="metadata">Metadata (JSON)</label>
@@ -165,6 +191,8 @@ const selectedAgent = ref({})
 const formData = ref({
   name: '',
   description: '',
+  instructions: '',
+  aiProvider: '',
   metadata: '{}'
 })
 
@@ -360,6 +388,16 @@ async function deleteAgent() {
 
 async function createAgent() {
   try {
+    // Validate required fields
+    if (!formData.value.name || !formData.value.instructions || !formData.value.aiProvider) {
+      notify({
+        type: 'error',
+        message: 'Missing required fields',
+        details: 'Please fill in all required fields (Name, Instructions, and AI Provider)'
+      })
+      return
+    }
+    
     // Validate JSON metadata
     try {
       JSON.parse(formData.value.metadata)
@@ -375,7 +413,9 @@ async function createAgent() {
     const agentData = {
       name: formData.value.name,
       description: formData.value.description,
-      organizationId: selectedOrgId.value,
+      instructions: formData.value.instructions,
+      ai_provider: formData.value.aiProvider,
+      organization_id: selectedOrgId.value,
       metadata: JSON.parse(formData.value.metadata)
     }
 
@@ -547,6 +587,8 @@ function resetForm() {
   formData.value = {
     name: '',
     description: '',
+    instructions: '',
+    aiProvider: '',
     metadata: '{}'
   }
   
