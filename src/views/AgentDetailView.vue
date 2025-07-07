@@ -37,15 +37,18 @@
         </select>
       </div>
       
-      <!-- Simple test dropdown that should always show up -->
-      <div class="test-dropdown-selector" style="margin: 15px 0; padding: 10px; border: 2px solid red;">
-        <h3>Test Dropdown (Should Always Be Visible)</h3>
-        <label for="test-dropdown">Test Options:</label>
-        <select id="test-dropdown" v-model="testDropdownValue" style="padding: 8px; margin-left: 10px;">
-          <option value="test1">Test1</option>
-          <option value="test2">Test2</option>
+      <!-- Test organization dropdown that matches the standard pattern -->
+      <div class="organization-selector test-dropdown" style="margin: 15px 0; padding: 10px; border: 2px solid red;">
+        <h3>Test Organization Dropdown (Should Always Be Visible)</h3>
+        <label for="test-organization">Organization:</label>
+        <select id="test-organization" v-model="testDropdownValue" @change="handleTestOrgChange" style="padding: 8px; margin-left: 10px;">
+          <option value="">Select an organization</option>
+          <option v-for="org in organizations" :key="org.id" :value="org.id">
+            {{ org.name }}
+          </option>
         </select>
-        <p>Selected value: {{ testDropdownValue }}</p>
+        <p>Selected organization ID: {{ testDropdownValue }}</p>
+        <p v-if="testDropdownValue">Selected organization name: {{ getOrgName(testDropdownValue) }}</p>
       </div>
       
       <div class="actions secondary-actions">
@@ -270,7 +273,7 @@ const showEditModal = ref(false)
 const showAddUserModal = ref(false)
 const showDeleteModal = ref(false)
 const loadingAvailableUsers = ref(false)
-const testDropdownValue = ref('test1') // Default value for our test dropdown
+const testDropdownValue = ref('') // Default value for our test dropdown (empty)
 const formData = ref({
   name: '',
   description: '',
@@ -522,6 +525,13 @@ async function removeUser(user) {
       alert('Error removing user: ' + error.message)
     }
   }
+}
+
+// Handler for the test organization dropdown change
+const handleTestOrgChange = () => {
+  console.log('Test organization changed to:', testDropdownValue.value)
+  console.log('Organization name:', getOrgName(testDropdownValue.value))
+  // This is just for testing - no actual data fetching needed yet
 }
 
 const openEditModal = () => {
