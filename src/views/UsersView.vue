@@ -558,13 +558,35 @@ async function createUser() {
     loading.value = true
     
     // 1. Create user in Firebase
-    console.log('Creating user in Firebase...')
-    const { createFirebaseUser } = await import('../services/firebase')
+    console.log('Creating user in Firebase...', formData.value.email)
+    const { createFirebaseUser, getAuth } = await import('../services/firebase')
+    
+    // Create the user in Firebase Authentication
     const userCredential = await createFirebaseUser(formData.value.email, formData.value.password)
     
     // Get Firebase UID
+    console.log('Firebase user credential:', userCredential)
+    console.log('Firebase user object:', userCredential.user)
+    
+    // Extract and verify the UID
     const firebaseUid = userCredential.user.uid
+    if (!firebaseUid) {
+      throw new Error('Failed to get Firebase UID after user creation')
+    }
+    
     console.log('Firebase user created with UID:', firebaseUid)
+    console.log('UID type:', typeof firebaseUid, 'UID length:', firebaseUid.length)
+    
+    // Double-check that the user is actually created in Firebase by getting the current user
+    const auth = getAuth()
+    await new Promise(resolve => setTimeout(resolve, 1000)) // Wait for Firebase to complete
+    const currentUser = auth.currentUser
+    console.log('Current Firebase user after creation:', currentUser)
+    
+    if (!currentUser || currentUser.uid !== firebaseUid) {
+      console.warn('Firebase user creation may not have completed properly')
+      // Continue anyway, but log the warning
+    }
     
     // 2. Create user in Spanner Users table
     const userPayload = {
@@ -576,11 +598,49 @@ async function createUser() {
       metadata: '{}' // Empty JSON metadata
     }
     
-    console.log('Creating user in Spanner Users table:', userPayload)
-    await usersApi.create(userPayload)
+    // Verify the payload has the correct UID before sending
+    console.log('Creating user in Spanner Users table with payload:', JSON.stringify(userPayload, null, 2))
+    console.log('Verifying user_id is set correctly:', userPayload.user_id === firebaseUid)
     
-    // Wait a moment to ensure the user is created in the database
-    await new Promise(resolve => setTimeout(resolve, 500))
+    // Make the API call with detailed logging
+    try {
+      const response = await usersApi.create(userPayload)
+      console.log('User creation API response:', response)
+      console.log('User created in database successfully with ID:', userPayload.user_id)
+    } catch (error) {
+      console.error('Failed to create user in database:', error)
+      console.error('Error response data:', error.response?.data)
+      throw error
+    }
+    console.log('User created in database successfully')
+    
+    // Wait longer to ensure the user is fully created and indexed in the database
+    console.log('Waiting for database consistency...')
+    
+    // First wait period
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    // Verify the user exists in the database before proceeding
+    try {
+      console.log('Verifying user exists in database after creation...')
+      const allUsers = await usersApi.getAll()
+      const userExists = allUsers.data.some(user => 
+        user.user_id === firebaseUid || 
+        user.email === formData.value.email
+      )
+      
+      if (!userExists) {
+        console.warn('User not found in database after creation. Waiting longer...')
+        // Wait even longer if user not found
+        await new Promise(resolve => setTimeout(resolve, 3000))
+      } else {
+        console.log('User confirmed to exist in database')
+      }
+    } catch (verifyError) {
+      console.error('Error verifying user in database:', verifyError)
+      // Continue anyway, but with additional wait
+      await new Promise(resolve => setTimeout(resolve, 3000))
+    }
     
     // 3. Create entry in UserOrgs table
     const userOrgPayload = {
@@ -592,38 +652,89 @@ async function createUser() {
       display_name: formData.value.displayName
     }
     
-    console.log('Creating user-org association:', userOrgPayload)
+    // Verify the UserOrgs payload has the correct UID before sending
+    console.log('Creating user-org association with payload:', JSON.stringify(userOrgPayload, null, 2))
+    console.log('Verifying UserOrgs user_id matches Firebase UID:', userOrgPayload.user_id === firebaseUid)
+    console.log('Organization ID being used:', userOrgPayload.organization_id)
+    
     try {
-      await usersApi.assignToOrganization(userOrgPayload)
-      console.log('User successfully assigned to organization')
+      // Get the current user list to verify the user was created in the database
+      const usersBeforeAssignment = await usersApi.getAll()
+      console.log('Users in database before org assignment:', 
+        usersBeforeAssignment.data.map(u => ({ id: u.id, user_id: u.user_id, email: u.email })))
+      
+      // Check if our newly created user exists in the database
+      const newUserExists = usersBeforeAssignment.data.some(u => 
+        u.user_id === firebaseUid || u.email === formData.value.email)
+      console.log('Newly created user exists in database before org assignment:', newUserExists)
+      
+      // If the user doesn't exist in the database yet, wait a bit longer
+      if (!newUserExists) {
+        console.warn('User not found in database before org assignment. Waiting longer...')
+        await new Promise(resolve => setTimeout(resolve, 3000))
+      }
+      
+      // Implement a retry mechanism for UserOrgs creation
+      let retryCount = 0;
+      const maxRetries = 3;
+      let success = false;
+      let lastError = null;
+      
+      while (retryCount < maxRetries && !success) {
+        try {
+          // Make the API call with detailed logging
+          const response = await usersApi.assignToOrganization(userOrgPayload)
+          console.log(`UserOrgs creation API response (attempt ${retryCount + 1}):`, response)
+          console.log('User successfully assigned to organization')
+          success = true;
+        } catch (retryError) {
+          lastError = retryError;
+          retryCount++;
+          console.warn(`UserOrgs creation failed (attempt ${retryCount}/${maxRetries}):`, retryError.message)
+          
+          if (retryCount < maxRetries) {
+            // Wait before retrying
+            const waitTime = 2000 * retryCount; // Increase wait time with each retry
+            console.log(`Waiting ${waitTime}ms before retry...`)
+            await new Promise(resolve => setTimeout(resolve, waitTime))
+          }
+        }
+      }
+      
+      // If all retries failed, throw the last error
+      if (!success) {
+        throw lastError;
+      }
+      
+      // Success notification
+      notify({
+        type: 'success',
+        message: 'User created successfully',
+        details: 'User has been created and assigned to the organization.'
+      })
     } catch (orgErr) {
       console.error('Error assigning user to organization:', orgErr)
-      // Don't throw here, we'll still consider the user creation successful
-      // but notify the user about the organization assignment issue
+      
+      // Partial success notification - user created but org assignment failed
       notify({
         type: 'warning',
-        message: 'User created but organization assignment failed',
-        details: 'The user was created but could not be assigned to the organization. Please try assigning them manually.'
+        message: 'User created but not assigned to organization',
+        details: 'The user was created successfully but could not be assigned to the organization. ' +
+                 'You may need to manually assign them later.'
       })
     }
     
-    // 4. Refresh the users list
+    // Refresh user list and reset UI
     await fetchUsers()
-    
-    notify({
-      type: 'success',
-      message: 'User created successfully',
-      details: 'User has been created in Firebase and assigned to the selected organization.'
-    })
-    
-    closeModal()
+    resetForm()
+    showCreateModal.value = false
   } catch (err) {
+    console.error('Error in user creation process:', err)
     notify({
       type: 'error',
       message: 'Failed to create user',
-      details: err.message
+      details: err.response?.data?.error || err.message || 'Unknown error'
     })
-    console.error('Error creating user:', err)
   } finally {
     loading.value = false
   }
