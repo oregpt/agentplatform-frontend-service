@@ -332,16 +332,18 @@ async function fetchAssignedUsers() {
       userOrgs = orgsResponse.data;
     } else {
       userOrgs = [];
+      console.warn('No organizations found in response');
     }
     
-    if (userOrgs.length === 0) {
-      console.warn('User has no access to any organizations');
-      users.value = [];
-      return;
-    }
+    console.log(`Organizations loaded in AgentDetailView: ${userOrgs.length}`);
     
-    // Create maps for organization access and user data
-    const userAccessibleOrgIds = new Set(userOrgs.map(org => org.id));
+    // Create a set of organization IDs the user has access to for quick lookup
+    const userAccessibleOrgIds = new Set();
+    userOrgs.forEach(org => {
+      userAccessibleOrgIds.add(org.id);
+    });
+    
+    // Create a map of organization names by ID for display
     const orgNameMap = {};
     userOrgs.forEach(org => {
       orgNameMap[org.id] = org.name;
@@ -354,58 +356,123 @@ async function fetchAssignedUsers() {
     for (const org of userOrgs) {
       try {
         const orgUsers = await usersApi.getAll(org.id);
-        const orgUsersList = orgUsers.data;
         
-        // Add users to the map
-        orgUsersList.forEach(user => {
-          const userId = user.user_id || user.id;
-          allUsersMap[userId] = user;
-        });
+        // Handle different response structures
+        if (orgUsers && orgUsers.data) {
+          // If it's an array, process each user
+          if (Array.isArray(orgUsers.data)) {
+            console.log(`Found ${orgUsers.data.length} users in organization ${org.id}`);
+            
+            orgUsers.data.forEach(user => {
+              const userId = user.user_id || user.id;
+              if (userId) {
+                allUsersMap[userId] = {
+                  ...user,
+                  organization_id: org.id,
+                  organization_name: org.name
+                };
+              }
+            });
+          } 
+          // If it's a single user object
+          else if (typeof orgUsers.data === 'object') {
+            const user = orgUsers.data;
+            const userId = user.user_id || user.id;
+            if (userId) {
+              allUsersMap[userId] = {
+                ...user,
+                organization_id: org.id,
+                organization_name: org.name
+              };
+              console.log(`Added single user ${userId} from organization ${org.id}`);
+            }
+          }
+        }
       } catch (orgError) {
         console.error(`Error fetching users for organization ${org.id}:`, orgError);
       }
     }
     
+    console.log('All users map:', allUsersMap);
+    
     // Make a single API call to get all users for this agent
     try {
-      // Use the first organization ID just to make the API call
-      // The backend ignores this parameter and returns all users for the agent
       const response = await userAgentApi.getUsersForAgent(agentId.value);
+      console.log('Raw agent user mappings response:', response);
       
-      if (!response.data) {
+      // Handle empty response
+      if (!response || !response.data) {
         console.log('No users assigned to this agent');
         users.value = [];
         return;
       }
       
-      console.log('Raw agent user mappings:', response.data);
+      // Handle different response structures
+      let userMappings = [];
       
-      // Filter users to only include those from organizations the current user has access to
-      const filteredAgentUsers = response.data.filter(mapping => {
-        const orgId = mapping.organization_id || mapping.OrganizationID;
-        return userAccessibleOrgIds.has(orgId);
-      });
+      if (Array.isArray(response.data)) {
+        userMappings = response.data;
+      } else if (typeof response.data === 'object') {
+        // If it's a single object, wrap it in an array
+        userMappings = [response.data];
+      }
       
-      console.log(`Filtered from ${response.data.length} to ${filteredAgentUsers.length} users based on organization access`);
+      console.log('Processed user mappings:', userMappings);
       
-      // Map the user IDs to actual user objects with organization info
-      users.value = filteredAgentUsers.map(mapping => {
-        const userId = mapping.user_id || mapping.UserID;
-        const orgId = mapping.organization_id || mapping.OrganizationID;
+      if (userMappings.length === 0) {
+        console.log('No user mappings found');
+        users.value = [];
+        return;
+      }
+      
+      // Include the current user in the users list if they're not already there
+      const currentUserId = localStorage.getItem('userId');
+      if (currentUserId) {
+        // If the current user isn't in allUsersMap, add them
+        if (!allUsersMap[currentUserId]) {
+          const currentUserEmail = localStorage.getItem('userEmail') || 'Current User';
+          allUsersMap[currentUserId] = {
+            id: currentUserId,
+            email: currentUserEmail,
+            name: currentUserEmail,
+            role: 'User'
+          };
+        }
+      }
+      
+      // Process all user mappings
+      const processedUsers = [];
+      
+      userMappings.forEach(mapping => {
+        // Extract user and org IDs, handling different field names
+        const userId = mapping.user_id || mapping.UserID || mapping.userId || mapping.id;
+        const orgId = mapping.organization_id || mapping.OrganizationID || mapping.organizationId;
+        
+        if (!userId) {
+          console.warn('Mapping missing user ID:', mapping);
+          return;
+        }
+        
+        // Get user details from our map
         const user = allUsersMap[userId];
         
-        return {
+        // Create a user object with all available information
+        const userObject = {
           id: userId,
           user_id: userId,
           email: user?.email || 'Unknown Email',
           name: user?.display_name || user?.name || user?.displayName || user?.email || `User ID: ${userId}`,
           role: user?.role || 'User',
-          organization_id: orgId,
-          organization_name: orgNameMap[orgId] || 'Unknown Organization'
+          organization_id: orgId || (user?.organization_id),
+          organization_name: orgId ? (orgNameMap[orgId] || 'Unknown Organization') : (user?.organization_name || 'Unknown Organization')
         };
+        
+        processedUsers.push(userObject);
       });
       
-      console.log(`Found ${users.value.length} users assigned to this agent in accessible organizations`);
+      // Set the users
+      users.value = processedUsers;
+      console.log(`Found ${users.value.length} users assigned to this agent`);
     } catch (error) {
       console.error('Error fetching agent users:', error);
       users.value = [];
@@ -489,16 +556,38 @@ async function openAddUserModal() {
     for (const org of organizations.value) {
       try {
         const orgUsers = await usersApi.getAll(org.id);
-        const orgUsersList = orgUsers.data;
+        console.log(`Add user modal - Response for org ${org.id}:`, orgUsers);
         
-        // Add organization info to each user
-        const usersWithOrg = orgUsersList.map(user => ({
-          ...user,
-          organization_id: org.id,
-          organization_name: org.name
-        }));
-        
-        allAvailableUsers.push(...usersWithOrg);
+        // Handle different response structures
+        if (orgUsers && orgUsers.data) {
+          let usersToAdd = [];
+          
+          // If it's an array, process each user
+          if (Array.isArray(orgUsers.data)) {
+            console.log(`Found ${orgUsers.data.length} users in organization ${org.id}`);
+            
+            usersToAdd = orgUsers.data.map(user => ({
+              ...user,
+              organization_id: org.id,
+              organization_name: org.name
+            }));
+          } 
+          // If it's a single user object
+          else if (typeof orgUsers.data === 'object') {
+            const user = orgUsers.data;
+            const userId = user.user_id || user.id;
+            if (userId) {
+              usersToAdd = [{
+                ...user,
+                organization_id: org.id,
+                organization_name: org.name
+              }];
+              console.log(`Added single user ${userId} from organization ${org.id}`);
+            }
+          }
+          
+          allAvailableUsers.push(...usersToAdd);
+        }
       } catch (orgError) {
         console.error(`Error fetching users for organization ${org.id}:`, orgError);
       }
