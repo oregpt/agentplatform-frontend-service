@@ -224,8 +224,18 @@ async function fetchData() {
       
       // Ensure files.value is always an array
       const responseData = filesResponse.data || {}
-      files.value = Array.isArray(responseData.files) ? responseData.files : 
+      const rawFiles = Array.isArray(responseData.files) ? responseData.files : 
                     Array.isArray(responseData) ? responseData : []
+      
+      // Process files to ensure they have all required properties
+      files.value = rawFiles.map(file => ({
+        ...file,
+        id: file.id || '',
+        name: file.name || 'Unnamed File',
+        sizeBytes: file.sizeBytes || 0,
+        contentType: file.contentType || 'text/markdown',
+        createdAt: file.createdAt || new Date().toISOString()
+      }))
       
       console.log('Files loaded:', files.value.length, 'for all organizations. Raw response:', filesResponse.data)
     } catch (filesError) {
@@ -290,8 +300,18 @@ function formatDate(dateString) {
 }
 
 async function downloadFile(fileId) {
+  // Validate file ID
+  if (!fileId) {
+    console.error('Cannot download file: File ID is undefined')
+    alert('Error: Cannot download file because the file ID is missing')
+    return
+  }
+  
   try {
+    console.log(`Downloading file with ID: ${fileId}`)
     const response = await filesApi.download(fileId)
+    
+    // Create a blob URL from the file data
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
@@ -301,8 +321,8 @@ async function downloadFile(fileId) {
     let filename = 'download'
     
     if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename="(.+)"/)
-      if (filenameMatch.length === 2) {
+      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/)
+      if (filenameMatch && filenameMatch.length >= 2) {
         filename = filenameMatch[1]
       }
     }
@@ -311,8 +331,12 @@ async function downloadFile(fileId) {
     document.body.appendChild(link)
     link.click()
     link.remove()
+    
+    // Clean up the blob URL
+    window.URL.revokeObjectURL(url)
   } catch (error) {
     console.error('Error downloading file:', error)
+    alert(`Error downloading file: ${error.message || 'Unknown error'}`)
   }
 }
 </script>

@@ -63,6 +63,7 @@
           @dragover.prevent="isDragging = true"
           @dragleave.prevent="isDragging = false"
           @drop.prevent="onFileDrop"
+          @click="triggerFileInput"
           :class="{ 'active': isDragging }"
         >
           <div v-if="!selectedFiles.length">
@@ -75,6 +76,7 @@
               accept=".md"
               multiple
               class="file-input"
+              style="display: none;"
             />
           </div>
           <div v-else class="selected-files">
@@ -166,9 +168,33 @@ async function fetchFiles() {
   loading.value = true
   try {
     const response = await filesApi.getAll(agentId.value)
-    files.value = response.data
+    console.log('Files response:', response.data)
+    
+    // Handle different response formats
+    if (Array.isArray(response.data)) {
+      files.value = response.data
+    } else if (response.data && Array.isArray(response.data.files)) {
+      files.value = response.data.files
+    } else if (response.data) {
+      files.value = [response.data] // Single file
+    } else {
+      files.value = []
+    }
+    
+    // Ensure all files have required properties
+    files.value = files.value.map(file => ({
+      ...file,
+      id: file.id || '',
+      name: file.name || 'Unnamed File',
+      sizeBytes: file.sizeBytes || 0,
+      contentType: file.contentType || 'text/markdown',
+      createdAt: file.createdAt || new Date().toISOString()
+    }))
+    
+    console.log('Processed files:', files.value)
   } catch (error) {
     console.error('Error fetching files:', error)
+    files.value = []
   } finally {
     loading.value = false
   }
@@ -205,12 +231,39 @@ function onFileDrop(event) {
 }
 
 function onFileSelect(event) {
+  if (!event.target.files || event.target.files.length === 0) {
+    console.log('No files selected')
+    return
+  }
+  
   const files = Array.from(event.target.files)
-  selectedFiles.value = [...selectedFiles.value, ...files]
+  
+  // Filter for only .md files
+  const markdownFiles = files.filter(file => file.name.toLowerCase().endsWith('.md'))
+  
+  if (markdownFiles.length === 0) {
+    alert('Only markdown (.md) files are allowed')
+    return
+  }
+  
+  selectedFiles.value = [...selectedFiles.value, ...markdownFiles]
+  console.log('Files selected:', selectedFiles.value)
+  
+  // Reset the file input to allow selecting the same file again
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
 }
 
 function removeFile(index) {
   selectedFiles.value.splice(index, 1)
+}
+
+function triggerFileInput() {
+  // Only trigger if there are no files selected yet
+  if (selectedFiles.value.length === 0 && fileInput.value) {
+    fileInput.value.click()
+  }
 }
 
 async function uploadFiles() {
@@ -257,29 +310,63 @@ function confirmDelete(file) {
 }
 
 async function downloadFile(file) {
+  // Validate file and file ID
+  if (!file || !file.id) {
+    console.error('Cannot download file: File or file ID is undefined', file)
+    alert('Error: Cannot download file because the file ID is missing')
+    return
+  }
+  
   try {
+    console.log(`Downloading file with ID: ${file.id}, name: ${file.name}`)
     const response = await filesApi.download(file.id)
+    
+    // Create a blob URL from the file data
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', file.name)
+    
+    // Use file name from the file object or from response headers
+    let filename = file.name || 'download'
+    
+    // If no filename from file object, try to get it from headers
+    if (!file.name && response.headers['content-disposition']) {
+      const filenameMatch = response.headers['content-disposition'].match(/filename="?([^"]+)"?/)
+      if (filenameMatch && filenameMatch.length >= 2) {
+        filename = filenameMatch[1]
+      }
+    }
+    
+    link.setAttribute('download', filename)
     document.body.appendChild(link)
     link.click()
     link.remove()
+    
+    // Clean up the blob URL
+    window.URL.revokeObjectURL(url)
   } catch (error) {
     console.error('Error downloading file:', error)
-    alert('Error downloading file: ' + error.message)
+    alert(`Error downloading file: ${error.message || 'Unknown error'}`)
   }
 }
 
 async function deleteFile() {
+  // Validate file ID
+  if (!selectedFile.value || !selectedFile.value.id) {
+    console.error('Cannot delete file: File ID is undefined', selectedFile.value)
+    alert('Error: Cannot delete file because the file ID is missing')
+    showDeleteModal.value = false
+    return
+  }
+  
   try {
+    console.log(`Deleting file with ID: ${selectedFile.value.id}`)
     await filesApi.delete(selectedFile.value.id)
     await fetchFiles()
     showDeleteModal.value = false
   } catch (error) {
     console.error('Error deleting file:', error)
-    alert('Error deleting file: ' + error.message)
+    alert(`Error deleting file: ${error.message || 'Unknown error'}`)
   }
 }
 </script>
