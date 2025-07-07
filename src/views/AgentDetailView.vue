@@ -27,6 +27,7 @@
         
       </div>
       
+      <!-- Original organization selector (keeping for reference) -->
       <div class="organization-selector" v-if="organizations.length > 0">
         <label for="organization">Organization:</label>
         <select id="organization" v-model="selectedOrgId" @change="handleOrgChange">
@@ -34,6 +35,17 @@
             {{ org.name }}
           </option>
         </select>
+      </div>
+      
+      <!-- Simple test dropdown that should always show up -->
+      <div class="test-dropdown-selector" style="margin: 15px 0; padding: 10px; border: 2px solid red;">
+        <h3>Test Dropdown (Should Always Be Visible)</h3>
+        <label for="test-dropdown">Test Options:</label>
+        <select id="test-dropdown" v-model="testDropdownValue" style="padding: 8px; margin-left: 10px;">
+          <option value="test1">Test1</option>
+          <option value="test2">Test2</option>
+        </select>
+        <p>Selected value: {{ testDropdownValue }}</p>
       </div>
       
       <div class="actions secondary-actions">
@@ -258,6 +270,7 @@ const showEditModal = ref(false)
 const showAddUserModal = ref(false)
 const showDeleteModal = ref(false)
 const loadingAvailableUsers = ref(false)
+const testDropdownValue = ref('test1') // Default value for our test dropdown
 const formData = ref({
   name: '',
   description: '',
@@ -290,6 +303,7 @@ async function fetchAgentData() {
   try {
     // Fetch agent details
     const agentResponse = await agentsApi.getById(agentId.value)
+    console.log('Raw agent data from API:', JSON.stringify(agentResponse.data, null, 2))
     agent.value = agentResponse.data
     
     // Fetch organizations
@@ -413,13 +427,16 @@ async function updateAgent() {
       aiProvider: formData.value.aiProvider
     })
     
+    // The backend model uses ai_provider (snake_case) for JSON
     const updatedAgent = {
       name: formData.value.name,
       description: formData.value.description,
       instructions: formData.value.instructions,
-      aiProvider: formData.value.aiProvider,
+      ai_provider: formData.value.aiProvider, // This is the correct field name based on the backend model
       metadata: metadata
     }
+    
+    console.log('Full payload being sent to API:', updatedAgent)
     
     await agentsApi.update(agent.value.id, updatedAgent)
     
@@ -511,9 +528,22 @@ const openEditModal = () => {
   // Populate form data with current agent values
   console.log('Current agent data:', agent.value)
   
-  // Ensure aiProvider is properly set from the database value
-  // Normalize the value to match our dropdown options
-  let aiProvider = agent.value.aiProvider || ''
+  // The backend model uses ai_provider (snake_case) for JSON
+  // So we should primarily look for that field
+  let aiProvider = ''
+  
+  // Log all properties of the agent object to see what fields are available
+  console.log('All agent properties:', Object.keys(agent.value))
+  
+  // Check for ai_provider field (this is the correct field name from backend)
+  if (agent.value.ai_provider) {
+    aiProvider = agent.value.ai_provider
+    console.log('Found ai_provider:', aiProvider)
+  } else {
+    console.warn('No ai_provider field found in agent data, defaulting to OpenAI')
+    // Default to OpenAI as a fallback
+    aiProvider = 'OpenAI'
+  }
   
   // Normalize the AI provider value to match our dropdown options
   if (aiProvider && typeof aiProvider === 'string') {
@@ -524,9 +554,9 @@ const openEditModal = () => {
     } else if (normalizedValue.toLowerCase().includes('anthropic')) {
       aiProvider = 'Anthropic'
     } else {
-      // Default to empty if not recognized
-      console.warn(`Unrecognized AI provider value: ${normalizedValue}, defaulting to empty selection`)
-      aiProvider = ''
+      // Default to OpenAI if not recognized
+      console.warn(`Unrecognized AI provider value: ${normalizedValue}, defaulting to OpenAI`)
+      aiProvider = 'OpenAI'
     }
   }
   
