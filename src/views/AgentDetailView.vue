@@ -25,17 +25,19 @@
           </div>
         </div>
         
-        <div class="organization-selector" v-if="organizations.length > 0">
-          <label for="organization">Organization:</label>
-          <select id="organization" v-model="selectedOrgId" @change="handleOrgChange">
-            <option v-for="org in organizations" :key="org.id" :value="org.id">
-              {{ org.name }}
-            </option>
-          </select>
-        </div>
-        <div class="actions">
-          <router-link :to="`/agents/${agent.id}/files`" class="files-btn">Manage Files</router-link>
-        </div>
+      </div>
+      
+      <div class="organization-selector" v-if="organizations.length > 0">
+        <label for="organization">Organization:</label>
+        <select id="organization" v-model="selectedOrgId" @change="handleOrgChange">
+          <option v-for="org in organizations" :key="org.id" :value="org.id">
+            {{ org.name }}
+          </option>
+        </select>
+      </div>
+      
+      <div class="actions secondary-actions">
+        <router-link :to="`/agents/${agent.id}/files`" class="files-btn">Manage Files</router-link>
       </div>
       
       <div class="agent-content">
@@ -176,6 +178,9 @@
               <option value="">Select AI Provider</option>
               <option value="OpenAI">OpenAI</option>
               <option value="Anthropic">Anthropic</option>
+              <option value="Google">Google</option>
+              <option value="Azure">Azure</option>
+              <option value="Custom">Custom</option>
             </select>
             <p class="help-text">The AI provider that will power this agent</p>
           </div>
@@ -378,7 +383,28 @@ async function fetchAssignedUsers(orgId) {
 
 async function updateAgent() {
   try {
-    const metadata = JSON.parse(formData.value.metadataJson)
+    // Parse metadata JSON
+    let metadata = {}
+    try {
+      metadata = JSON.parse(formData.value.metadataJson)
+    } catch (jsonError) {
+      console.error('Error parsing metadata JSON:', jsonError)
+      alert('Invalid metadata JSON format. Please check your JSON syntax.')
+      return
+    }
+    
+    // Ensure aiProvider is set
+    if (!formData.value.aiProvider) {
+      alert('AI Provider is required. Please select an AI Provider.')
+      return
+    }
+    
+    console.log('Updating agent with data:', {
+      name: formData.value.name,
+      description: formData.value.description,
+      instructions: formData.value.instructions,
+      aiProvider: formData.value.aiProvider
+    })
     
     const updatedAgent = {
       name: formData.value.name,
@@ -403,6 +429,7 @@ async function updateAgent() {
     showEditModal.value = false
   } catch (error) {
     console.error('Error updating agent:', error)
+    alert(`Error updating agent: ${error.response?.data?.error || error.message || 'Unknown error'}`)
   }
 }
 
@@ -475,13 +502,21 @@ async function removeUser(user) {
 
 const openEditModal = () => {
   // Populate form data with current agent values
+  console.log('Current agent data:', agent.value)
+  
+  // Ensure aiProvider is properly set from the database value
+  const aiProvider = agent.value.aiProvider || ''
+  console.log('AI Provider from database:', aiProvider)
+  
   formData.value = {
     name: agent.value.name || '',
     description: agent.value.description || '',
     instructions: agent.value.instructions || '',
-    aiProvider: agent.value.aiProvider || '',
+    aiProvider: aiProvider,
     metadataJson: agent.value.metadata ? JSON.stringify(agent.value.metadata, null, 2) : '{}'
   }
+  
+  console.log('Form data populated:', formData.value)
   showEditModal.value = true
 }
 
@@ -759,11 +794,16 @@ const formatDate = (dateString) => {
 }
 
 .organization-selector {
-  margin-bottom: 20px;
+  margin: 15px 0;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 0;
+  padding: 15px;
+  background-color: #f0f4f8;
+  border-radius: 6px;
+  width: 100%;
+  border: 1px solid #d0d7de;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 .organization-selector label {
@@ -772,12 +812,14 @@ const formatDate = (dateString) => {
 }
 
 .organization-selector select {
-  padding: 8px 12px;
+  padding: 10px 12px;
   border-radius: 4px;
   border: 1px solid #ccc;
+  min-width: 250px;
+  font-size: 16px;
   background-color: white;
-  font-size: 14px;
-  min-width: 200px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  cursor: pointer;
 }
 
 .add-user-btn {
