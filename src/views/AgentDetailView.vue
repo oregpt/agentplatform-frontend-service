@@ -82,9 +82,15 @@
           <ul v-else class="users-list">
             <li v-for="user in users" :key="user.id" class="user-item">
               <div class="user-info">
-                <span class="user-name">{{ user.name || 'Unknown' }}</span>
-                <span class="user-email">{{ user.email }}</span>
-                <span class="user-org" v-if="user.organization_name">{{ user.organization_name }}</span>
+                <div class="user-name">{{ user.name && user.name !== `User ID: ${user.id}` ? user.name : 'Unknown User' }}</div>
+                <div class="user-details">
+                  <span class="detail-label">Email:</span>
+                  <span class="user-email">{{ user.email !== 'Unknown Email' ? user.email : 'Not available' }}</span>
+                </div>
+                <div class="user-details" v-if="user.organization_name">
+                  <span class="detail-label">Organization:</span>
+                  <span class="user-org">{{ user.organization_name }}</span>
+                </div>
               </div>
               <button @click="removeUser(user)" class="remove-user-btn">
                 <i class="fas fa-x"></i>
@@ -1041,21 +1047,48 @@ const formatDate = (dateString) => {
 .user-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: 15px;
   background-color: #f8f9fa;
   border-radius: 4px;
+  border: 1px solid #e0e0e0;
 }
 
-.user-info h3 {
-  margin: 0 0 5px 0;
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 85%;
+}
+
+.user-name {
+  font-weight: 600;
   font-size: 1.1rem;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.user-details {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.detail-label {
+  font-weight: 500;
+  color: #555;
+  min-width: 90px;
 }
 
 .user-email {
-  color: #7f8c8d;
-  font-size: 0.9rem;
-  margin: 0 0 5px 0;
+  color: #2980b9;
+  font-size: 0.95rem;
+}
+
+.user-org {
+  color: #16a085;
+  font-size: 0.95rem;
 }
 
 .user-role {
