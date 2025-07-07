@@ -27,57 +27,22 @@
         
       </div>
       
-      <!-- Original organization selector (keeping for reference) -->
-      <div class="organization-selector" v-if="organizations.length > 0">
-        <label for="organization">Organization:</label>
-        <select id="organization" v-model="selectedOrgId" @change="handleOrgChange">
-          <option v-for="org in organizations" :key="org.id" :value="org.id">
-            {{ org.name }}
-          </option>
-        </select>
-      </div>
-      
-      <!-- Test organization dropdown that matches the standard pattern -->
-      <div class="organization-selector test-dropdown" style="margin: 15px 0; padding: 10px; border: 2px solid red;">
-        <h3>Test Organization Dropdown (Should Always Be Visible)</h3>
-        <label for="test-organization">Organization:</label>
-        <select id="test-organization" v-model="testDropdownValue" @change="handleTestOrgChange" style="padding: 8px; margin-left: 10px;">
-          <option value="">Select an organization</option>
-          <option v-for="org in organizations" :key="org.id" :value="org.id">
-            {{ org.name }}
-          </option>
-        </select>
-        <p>Selected organization ID: {{ testDropdownValue }}</p>
-        <p v-if="testDropdownValue">Selected organization name: {{ getOrgName(testDropdownValue) }}</p>
-        <p><strong>Total Organizations:</strong> {{ organizations.length }}</p>
-      </div>
+      <!-- Organization dropdowns removed as requested -->
       
       <div class="actions secondary-actions">
         <router-link :to="`/agents/${agent.id}/files`" class="files-btn">Manage Files</router-link>
       </div>
       
       <div class="agent-content">
-        <div v-if="!selectedOrgId" class="no-org-selected">
-          <p>Data will populate once an organization is selected. Please select an organization.</p>
-        </div>
-        
-        <div v-else class="agent-info-card">
+        <div class="agent-info-card">
           <h2>Agent Information</h2>
           <div class="info-row">
-            <span class="label">Organization:</span>
-            <span class="value">{{ getOrgName(selectedOrgId) }}</span>
+            <span class="label">Agent Name:</span>
+            <span class="value">{{ agent.name }}</span>
           </div>
           <div class="info-row">
             <span class="label">Agent ID:</span>
             <span class="value">{{ agent.id }}</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Created:</span>
-            <span class="value">{{ formatDate(agent.createdAt) }}</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Last Updated:</span>
-            <span class="value">{{ formatDate(agent.updatedAt) }}</span>
           </div>
           <div class="info-row" v-if="agent.description">
             <span class="label">Description:</span>
@@ -85,11 +50,19 @@
           </div>
           <div class="info-row">
             <span class="label">Instructions:</span>
-            <p class="value description">{{ agent.instructions }}</p>
+            <p class="value description">{{ agent.instructions || 'No instructions provided' }}</p>
           </div>
           <div class="info-row">
             <span class="label">AI Provider:</span>
-            <span class="value">{{ agent.aiProvider }}</span>
+            <span class="value">{{ agent.ai_provider || agent.AIProvider || agent.aiProvider || 'Not specified' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Created By:</span>
+            <span class="value">{{ agent.created_by || agent.createdBy || 'Unknown' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Created At:</span>
+            <span class="value">{{ formatDate(agent.created_at || agent.createdAt) }}</span>
           </div>
         </div>
         
@@ -98,9 +71,9 @@
           <pre class="metadata-json">{{ prettyMetadata }}</pre>
         </div>
         
-        <div v-if="selectedOrgId" class="agent-users-card">
+        <div class="agent-users-card">
           <div class="card-header">
-            <h2>Users</h2>
+            <h2>Users ({{ users.length }})</h2>
             <button @click="openAddUserModal()" class="add-user-btn">Add User</button>
           </div>
           <div v-if="users.length === 0" class="empty-state">
@@ -111,6 +84,7 @@
               <div class="user-info">
                 <span class="user-name">{{ user.name || 'Unknown' }}</span>
                 <span class="user-email">{{ user.email }}</span>
+                <span class="user-org" v-if="user.organization_name">{{ user.organization_name }}</span>
               </div>
               <button @click="removeUser(user)" class="remove-user-btn">
                 <i class="fas fa-times"></i>
@@ -265,7 +239,7 @@ const route = useRoute()
 const router = useRouter()
 const agent = ref({})
 const organizations = ref([])
-const selectedOrgId = ref('')
+// Organization selection removed as requested
 const users = ref([])
 const availableUsers = ref([])
 const files = ref([])
@@ -273,8 +247,6 @@ const loading = ref(true)
 const showEditModal = ref(false)
 const showAddUserModal = ref(false)
 const showDeleteModal = ref(false)
-const loadingAvailableUsers = ref(false)
-const testDropdownValue = ref('') // Default value for our test dropdown (empty)
 const formData = ref({
   name: '',
   description: '',
@@ -310,29 +282,14 @@ async function fetchAgentData() {
     console.log('Raw agent data from API:', JSON.stringify(agentResponse.data, null, 2))
     agent.value = agentResponse.data
     
-    // Fetch organizations - similar to AgentsView implementation
+    // Fetch organizations for reference only (not for dropdown)
     try {
       const orgsResponse = await organizationsApi.getAll()
       
       if (orgsResponse.data && orgsResponse.data.organizations) {
-        // Store real organizations first
-        const realOrgs = orgsResponse.data.organizations
-        
-        // Add 'All' option if user has access to multiple organizations
-        if (realOrgs.length > 1) {
-          organizations.value = [{ id: 'All', name: 'All Organizations' }, ...realOrgs]
-        } else {
-          organizations.value = [...realOrgs]
-        }
+        organizations.value = orgsResponse.data.organizations
       } else if (Array.isArray(orgsResponse.data)) {
-        const realOrgs = orgsResponse.data
-        
-        // Add 'All' option if user has access to multiple organizations
-        if (realOrgs.length > 1) {
-          organizations.value = [{ id: 'All', name: 'All Organizations' }, ...realOrgs]
-        } else {
-          organizations.value = [...realOrgs]
-        }
+        organizations.value = orgsResponse.data
       } else {
         organizations.value = []
       }
@@ -343,16 +300,8 @@ async function fetchAgentData() {
       organizations.value = []
     }
     
-    // Check if we have an organization ID from the route query
-    const queryOrgId = route.query.orgId
-    if (queryOrgId && organizations.value.some(org => org.id === queryOrgId)) {
-      selectedOrgId.value = queryOrgId
-      await fetchAgentDataForOrg(queryOrgId)
-    } else if (organizations.value.length > 0) {
-      // Default to first organization if no query param
-      selectedOrgId.value = organizations.value[0].id
-      await fetchAgentDataForOrg(selectedOrgId.value)
-    }
+    // Fetch users assigned to this agent across all accessible organizations
+    await fetchAssignedUsers()
 
     // Fetch files for this agent
     try {
@@ -369,68 +318,87 @@ async function fetchAgentData() {
   }
 }
 
-async function fetchAgentDataForOrg(orgId) {
-  if (!orgId) return
-  
+async function fetchAssignedUsers() {
   try {
-    // Fetch users for this agent in this organization
-    await fetchAssignedUsers(orgId);
+    // Get all organizations the current user has access to
+    const orgsResponse = await organizationsApi.getAll();
+    let userOrgs = [];
     
-    // Update URL with organization ID for bookmarking/sharing
-    const query = { ...route.query, orgId };
-    router.replace({ query });
-  } catch (error) {
-    console.error(`Error fetching data for organization ${orgId}:`, error)
-    users.value = []
-  }
-}
-
-async function handleOrgChange() {
-  await fetchAgentDataForOrg(selectedOrgId.value)
-}
-
-async function fetchAssignedUsers(orgId) {
-  if (!orgId) {
-    console.warn('No organization ID provided to fetchAssignedUsers');
-    users.value = [];
-    return;
-  }
-  
-  try {
-    // Get all users in the selected organization for reference
-    const orgUsers = await usersApi.getAll(orgId);
-    const allUsers = orgUsers.data;
+    if (orgsResponse.data && orgsResponse.data.organizations) {
+      userOrgs = orgsResponse.data.organizations;
+    } else if (Array.isArray(orgsResponse.data)) {
+      userOrgs = orgsResponse.data;
+    } else {
+      userOrgs = [];
+    }
+    
+    if (userOrgs.length === 0) {
+      console.warn('User has no access to any organizations');
+      users.value = [];
+      return;
+    }
+    
+    // Create a map to store all users by ID
     const allUsersMap = {};
+    const orgNameMap = {};
     
-    // Create a map of users by ID for quick lookup
-    allUsers.forEach(user => {
-      // Use user_id if available, otherwise fall back to id
-      const userId = user.user_id || user.id;
-      allUsersMap[userId] = user;
+    // Fetch users from all organizations the user has access to
+    for (const org of userOrgs) {
+      try {
+        const orgUsers = await usersApi.getAll(org.id);
+        const orgUsersList = orgUsers.data;
+        
+        // Add users to the map
+        orgUsersList.forEach(user => {
+          const userId = user.user_id || user.id;
+          allUsersMap[userId] = user;
+          orgNameMap[userId] = org.name; // Store organization name for display
+        });
+      } catch (orgError) {
+        console.error(`Error fetching users for organization ${org.id}:`, orgError);
+      }
+    }
+    
+    // Fetch all users assigned to this agent from all accessible organizations
+    const agentUsersPromises = userOrgs.map(org => 
+      userAgentApi.getUsersForAgent(agentId.value, org.id)
+        .then(response => {
+          if (response.data) {
+            return response.data.map(mapping => ({
+              ...mapping,
+              organization_id: org.id,
+              organization_name: org.name
+            }));
+          }
+          return [];
+        })
+        .catch(error => {
+          console.error(`Error fetching agent users for org ${org.id}:`, error);
+          return [];
+        })
+    );
+    
+    const agentUsersResults = await Promise.all(agentUsersPromises);
+    const allAgentUsers = agentUsersResults.flat();
+    
+    // Map the user IDs to actual user objects with organization info
+    users.value = allAgentUsers.map(mapping => {
+      const userId = mapping.user_id || mapping.userId;
+      const user = allUsersMap[userId];
+      return {
+        id: userId,
+        user_id: userId,
+        email: user?.email || 'Unknown Email',
+        name: user?.display_name || user?.name || user?.displayName || user?.email || `User ID: ${userId}`,
+        role: user?.role || 'User',
+        organization_id: mapping.organization_id,
+        organization_name: mapping.organization_name || orgNameMap[userId] || 'Unknown Organization'
+      };
     });
     
-    // Get all users assigned to this agent using the new endpoint with org ID
-    const response = await userAgentApi.getUsersForAgent(agentId.value, orgId);
-    
-    if (response.data) {
-      // Map the user IDs from UserAgent table to actual user objects
-      users.value = response.data.map(mapping => {
-        // Normalize userId to handle both formats
-        const userId = mapping.user_id || mapping.userId;
-        const user = allUsersMap[userId];
-        return {
-          id: userId,
-          user_id: userId, // Add this field explicitly for consistency
-          email: user?.email || 'Unknown Email',
-          name: user?.display_name || user?.name || user?.displayName || user?.email || `User ID: ${userId}`,
-          role: user?.role || 'User'
-        };
-      });
-    } else {
-      users.value = [];
-    }
+    console.log(`Found ${users.value.length} users assigned to this agent across all accessible organizations`);
   } catch (error) {
-    console.error(`Error fetching assigned users for org ${orgId}:`, error);
+    console.error('Error fetching assigned users:', error);
     users.value = [];
   }
 }
@@ -491,17 +459,19 @@ async function updateAgent() {
 }
 
 async function openAddUserModal() {
-  if (!selectedOrgId.value) {
-    alert('Please select an organization first');
+  // Get the first organization for adding users (could be enhanced to let user select)
+  if (organizations.value.length === 0) {
+    alert('You need access to at least one organization to add users');
     return;
   }
   
   showAddUserModal.value = true
-  loadingAvailableUsers.value = true
+  const loadingAvailableUsers = ref(true)
   
   try {
-    // Fetch all users in the selected organization
-    const orgUsers = await usersApi.getAll(selectedOrgId.value)
+    // Use the first organization for adding users
+    const orgId = organizations.value[0].id;
+    const orgUsers = await usersApi.getAll(orgId)
     const allUsers = orgUsers.data;
     
     // Filter out users that are already assigned to this agent
@@ -516,22 +486,24 @@ async function openAddUserModal() {
 }
 
 async function addUser(user) {
-  if (!selectedOrgId.value) {
-    alert('Please select an organization first');
+  // Use the first organization for adding users
+  if (organizations.value.length === 0) {
+    alert('You need access to at least one organization to add users');
     return;
   }
   
+  const orgId = organizations.value[0].id;
+  
   try {
     // Assign user to agent with organization context
-    await userAgentApi.assignUserToAgent(user.id, agentId.value)
-    
-    // Add user to the local users list
-    users.value.push({
-      id: user.id,
-      email: user.email,
-      name: user.name || user.displayName || user.email,
-      role: user.role || 'User'
+    await userAgentApi.addUserToAgent({
+      user_id: user.id,
+      agent_id: agentId.value,
+      organization_id: orgId
     })
+    
+    // Refresh the users list to include the newly added user
+    await fetchAssignedUsers()
     
     // Remove user from available users list
     availableUsers.value = availableUsers.value.filter(u => u.id !== user.id)
@@ -548,8 +520,15 @@ function closeAddUserModal() {
 async function removeUser(user) {
   if (confirm(`Are you sure you want to remove ${user.email} from this agent?`)) {
     try {
-      await userAgentApi.removeUserFromAgent(user.id, agentId.value)
-      users.value = users.value.filter(u => u.id !== user.id)
+      // Need to include organization_id if the API requires it
+      if (user.organization_id) {
+        await userAgentApi.removeUserFromAgent(user.id, agentId.value, user.organization_id)
+      } else {
+        await userAgentApi.removeUserFromAgent(user.id, agentId.value)
+      }
+      
+      // Refresh the users list after removal
+      await fetchAssignedUsers()
     } catch (error) {
       console.error('Error removing user:', error)
       alert('Error removing user: ' + error.message)
@@ -557,40 +536,28 @@ async function removeUser(user) {
   }
 }
 
-// Handler for the test organization dropdown change
-const handleTestOrgChange = () => {
-  console.log('Test organization changed to:', testDropdownValue.value)
-  console.log('Organization name:', getOrgName(testDropdownValue.value))
-  
-  // Log organization details for debugging
-  if (testDropdownValue.value) {
-    const selectedOrg = organizations.value.find(org => org.id === testDropdownValue.value)
-    if (selectedOrg) {
-      console.log('Selected organization details:', selectedOrg)
-    }
-  }
-  
-  // This is just for testing - no actual data fetching needed yet
-  // In the future, this could be used to filter agents by organization
-}
-
 const openEditModal = () => {
   // Populate form data with current agent values
   console.log('Current agent data:', agent.value)
   
-  // The backend model uses ai_provider (snake_case) for JSON
-  // So we should primarily look for that field
+  // Check for AI provider in various possible field names
   let aiProvider = ''
   
   // Log all properties of the agent object to see what fields are available
   console.log('All agent properties:', Object.keys(agent.value))
   
-  // Check for ai_provider field (this is the correct field name from backend)
+  // Try all possible field name variations
   if (agent.value.ai_provider) {
     aiProvider = agent.value.ai_provider
     console.log('Found ai_provider:', aiProvider)
+  } else if (agent.value.AIProvider) {
+    aiProvider = agent.value.AIProvider
+    console.log('Found AIProvider:', aiProvider)
+  } else if (agent.value.aiProvider) {
+    aiProvider = agent.value.aiProvider
+    console.log('Found aiProvider:', aiProvider)
   } else {
-    console.warn('No ai_provider field found in agent data, defaulting to OpenAI')
+    console.warn('No AI provider field found in agent data, defaulting to OpenAI')
     // Default to OpenAI as a fallback
     aiProvider = 'OpenAI'
   }
