@@ -114,7 +114,14 @@ export const usersApi = {
 export const userAgentApi = {
   assignUserToAgent: (userId, agentId) => api.post('/users/assign', { userId, agentId }),
   removeUserFromAgent: (userId, agentId) => api.delete(`/users/by-id/${userId}/agents/${agentId}`),
-  getUserAgents: (userId) => api.get(`/users/by-id/${userId}/agents`)
+  getUserAgents: (userId) => api.get(`/users/by-id/${userId}/agents`),
+  getUsersForAgent: (agentId, organizationId) => {
+    const params = {};
+    if (organizationId) {
+      params.organization_id = organizationId;
+    }
+    return api.get(`/agents/${agentId}/users`, { params });
+  }
 }
 
 // Intercept requests to add auth token

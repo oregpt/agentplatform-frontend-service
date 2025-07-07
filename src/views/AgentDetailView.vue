@@ -10,23 +10,44 @@
     
     <div v-else class="agent-detail">
       <div class="header">
-        <div class="title-section">
-          <h1>{{ agent.name }}</h1>
-          <span class="agent-id">ID: {{ agent.id }}</span>
+        <div class="top-section">
+          <div class="title-section">
+            <router-link to="/agents" class="back-button">
+              <i class="fas fa-arrow-left"></i> Back to Agents
+            </router-link>
+            <h1>{{ agent.name }}</h1>
+            <span class="agent-id">ID: {{ agent.id }}</span>
+          </div>
+          
+          <div class="actions">
+            <button @click="openEditModal()" class="edit-btn">Edit Agent</button>
+            <button @click="confirmDelete(agent)" class="delete-btn">Delete Agent</button>
+          </div>
+        </div>
+        
+        <div class="organization-selector" v-if="organizations.length > 0">
+          <label for="organization">Organization:</label>
+          <select id="organization" v-model="selectedOrgId" @change="handleOrgChange">
+            <option v-for="org in organizations" :key="org.id" :value="org.id">
+              {{ org.name }}
+            </option>
+          </select>
         </div>
         <div class="actions">
-          <button @click="openEditModal()" class="edit-btn">Edit Agent</button>
-          <button @click="confirmDelete(agent)" class="delete-btn">Delete Agent</button>
           <router-link :to="`/agents/${agent.id}/files`" class="files-btn">Manage Files</router-link>
         </div>
       </div>
       
       <div class="agent-content">
-        <div class="agent-info-card">
+        <div v-if="!selectedOrgId" class="no-org-selected">
+          <p>Data will populate once an organization is selected. Please select an organization.</p>
+        </div>
+        
+        <div v-else class="agent-info-card">
           <h2>Agent Information</h2>
           <div class="info-row">
             <span class="label">Organization:</span>
-            <span class="value">{{ organizationName }}</span>
+            <span class="value">{{ getOrgName(selectedOrgId) }}</span>
           </div>
           <div class="info-row">
             <span class="label">Agent ID:</span>
@@ -59,28 +80,25 @@
           <pre class="metadata-json">{{ prettyMetadata }}</pre>
         </div>
         
-        <div class="agent-users-card">
+        <div v-if="selectedOrgId" class="agent-users-card">
           <div class="card-header">
-            <h2>Assigned Users</h2>
-            <button @click="openAddUserModal" class="add-user-btn">+ Add User</button>
+            <h2>Users</h2>
+            <button @click="openAddUserModal()" class="add-user-btn">Add User</button>
           </div>
-          
-          <div v-if="users.length === 0" class="empty-users">
-            No users assigned to this agent.
+          <div v-if="users.length === 0" class="empty-state">
+            <p>No users have access to this agent.</p>
           </div>
-          
-          <div v-else class="users-list">
-            <div v-for="user in users" :key="user.id" class="user-item">
+          <ul v-else class="users-list">
+            <li v-for="user in users" :key="user.id" class="user-item">
               <div class="user-info">
-                <h3>{{ user.displayName || user.email }}</h3>
-                <p class="user-email">{{ user.email }}</p>
-                <span class="user-role">{{ user.role || 'User' }}</span>
+                <span class="user-name">{{ user.name || 'Unknown' }}</span>
+                <span class="user-email">{{ user.email }}</span>
               </div>
               <button @click="removeUser(user)" class="remove-user-btn">
-                <span class="remove-icon">×</span> Remove
+                <i class="fas fa-times"></i>
               </button>
-            </div>
-          </div>
+            </li>
+          </ul>
         </div>
       </div>
     </div>
@@ -228,7 +246,8 @@ api.interceptors.request.use(async (config) => {
 const route = useRoute()
 const router = useRouter()
 const agent = ref({})
-const organization = ref({})
+const organizations = ref([])
+const selectedOrgId = ref('')
 const users = ref([])
 const availableUsers = ref([])
 const files = ref([])
@@ -246,7 +265,10 @@ const formData = ref({
 })
 
 const agentId = computed(() => route.params.id)
-const organizationName = computed(() => organization.value?.name || 'Unknown')
+const getOrgName = (orgId) => {
+  const org = organizations.value.find(o => o.id === orgId)
+  return org ? org.name : 'Unknown'
+}
 const filesCount = computed(() => files.value.length)
 const usersCount = computed(() => users.value.length)
 const hasMetadata = computed(() => agent.value?.metadata && Object.keys(agent.value.metadata).length > 0)
@@ -268,37 +290,61 @@ async function fetchAgentData() {
     const agentResponse = await agentsApi.getById(agentId.value)
     agent.value = agentResponse.data
     
-    // Set form data for editing
-    formData.value = {
-      name: agent.value.name,
-      description: agent.value.description || '',
-      metadataJson: agent.value.metadata ? JSON.stringify(agent.value.metadata, null, 2) : '{}'
-    }
+    // Fetch organizations
+    const orgsResponse = await organizationsApi.getAll()
+    organizations.value = orgsResponse.data
     
-    // Fetch organization details
-    if (agent.value.organizationId) {
-      const orgResponse = await organizationsApi.getById(agent.value.organizationId)
-      organization.value = orgResponse.data
+    // Check if we have an organization ID from the route query
+    const queryOrgId = route.query.orgId
+    if (queryOrgId && organizations.value.some(org => org.id === queryOrgId)) {
+      selectedOrgId.value = queryOrgId
+      await fetchAgentDataForOrg(queryOrgId)
+    } else if (organizations.value.length > 0) {
+      // Default to first organization if no query param
+      selectedOrgId.value = organizations.value[0].id
+      await fetchAgentDataForOrg(selectedOrgId.value)
     }
-    
+
     // Fetch files for this agent
-    const filesResponse = await filesApi.getAll(agentId.value)
+    const filesResponse = await filesApi.getByAgentId(agentId.value)
     files.value = filesResponse.data
-    
-    // Fetch users assigned to this agent
-    await fetchAssignedUsers()
-    
   } catch (error) {
-    console.error('Error fetching agent data:', error)
+    console.error('Error fetching agent details:', error)
   } finally {
     loading.value = false
   }
 }
 
-async function fetchAssignedUsers() {
+async function fetchAgentDataForOrg(orgId) {
+  if (!orgId) return
+  
   try {
-    // Get all users in the organization for reference
-    const orgUsers = await usersApi.getAll(agent.value.organizationId)
+    // Fetch users for this agent in this organization
+    await fetchAssignedUsers(orgId);
+    
+    // Update URL with organization ID for bookmarking/sharing
+    const query = { ...route.query, orgId };
+    router.replace({ query });
+  } catch (error) {
+    console.error(`Error fetching data for organization ${orgId}:`, error)
+    users.value = []
+  }
+}
+
+async function handleOrgChange() {
+  await fetchAgentDataForOrg(selectedOrgId.value)
+}
+
+async function fetchAssignedUsers(orgId) {
+  if (!orgId) {
+    console.warn('No organization ID provided to fetchAssignedUsers');
+    users.value = [];
+    return;
+  }
+  
+  try {
+    // Get all users in the selected organization for reference
+    const orgUsers = await usersApi.getAll(orgId);
     const allUsers = orgUsers.data;
     const allUsersMap = {};
     
@@ -307,8 +353,8 @@ async function fetchAssignedUsers() {
       allUsersMap[user.id] = user;
     });
     
-    // Get all users assigned to this agent using the new endpoint
-    const response = await agentsApi.getUsers(agentId.value);
+    // Get all users assigned to this agent using the new endpoint with org ID
+    const response = await userAgentApi.getUsersForAgent(agentId.value, orgId);
     
     if (response.data) {
       // Map the user IDs from UserAgent table to actual user objects
@@ -317,7 +363,7 @@ async function fetchAssignedUsers() {
         return {
           id: mapping.userId,
           email: user?.email || 'Unknown Email',
-          displayName: user?.displayName || user?.email || `User ID: ${mapping.userId}`,
+          name: user?.name || user?.displayName || user?.email || `User ID: ${mapping.userId}`,
           role: user?.role || 'User'
         };
       });
@@ -325,7 +371,7 @@ async function fetchAssignedUsers() {
       users.value = [];
     }
   } catch (error) {
-    console.error('Error fetching assigned users:', error);
+    console.error(`Error fetching assigned users for org ${orgId}:`, error);
     users.value = [];
   }
 }
@@ -361,12 +407,17 @@ async function updateAgent() {
 }
 
 async function openAddUserModal() {
+  if (!selectedOrgId.value) {
+    alert('Please select an organization first');
+    return;
+  }
+  
   showAddUserModal.value = true
   loadingAvailableUsers.value = true
   
   try {
-    // Fetch all users in the organization
-    const orgUsers = await usersApi.getAll(agent.value.organizationId)
+    // Fetch all users in the selected organization
+    const orgUsers = await usersApi.getAll(selectedOrgId.value)
     const allUsers = orgUsers.data;
     
     // Filter out users that are already assigned to this agent
@@ -381,15 +432,20 @@ async function openAddUserModal() {
 }
 
 async function addUser(user) {
+  if (!selectedOrgId.value) {
+    alert('Please select an organization first');
+    return;
+  }
+  
   try {
-    // Assign user to agent
+    // Assign user to agent with organization context
     await userAgentApi.assignUserToAgent(user.id, agentId.value)
     
     // Add user to the local users list
     users.value.push({
       id: user.id,
       email: user.email,
-      displayName: user.displayName || user.email,
+      name: user.name || user.displayName || user.email,
       role: user.role || 'User'
     })
     
@@ -447,7 +503,20 @@ const deleteAgent = async () => {
 
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleString()
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return 'N/A'
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch (e) {
+    console.error('Error formatting date:', e)
+    return 'N/A'
+  }
 }
 </script>
 
@@ -512,14 +581,54 @@ const formatDate = (dateString) => {
 
 .header {
   display: flex;
+  flex-direction: column;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.top-section {
+  display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 15px;
 }
 
 .title-section {
-  display: flex;
-  flex-direction: column;
+  flex: 1;
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  color: #3498db;
+  text-decoration: none;
+  font-weight: 500;
+  margin-bottom: 10px;
+  transition: color 0.2s;
+}
+
+.back-button:hover {
+  color: #2980b9;
+}
+
+.back-button i {
+  margin-right: 5px;
+}
+
+.no-org-selected {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  margin: 20px 0;
+  border: 1px dashed #ccc;
+}
+
+.no-org-selected p {
+  font-size: 16px;
+  color: #6c757d;
+  margin: 0;
 }
 
 .agent-id {
@@ -647,6 +756,28 @@ const formatDate = (dateString) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+.organization-selector {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.organization-selector label {
+  font-weight: 500;
+  color: #333;
+}
+
+.organization-selector select {
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: white;
+  font-size: 14px;
+  min-width: 200px;
 }
 
 .add-user-btn {
@@ -815,6 +946,21 @@ const formatDate = (dateString) => {
 
 .user-assignment-item:last-child {
   border-bottom: none;
+}
+
+.user-assignment-header {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.top-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
 }
 
 /* Toggle Switch */
