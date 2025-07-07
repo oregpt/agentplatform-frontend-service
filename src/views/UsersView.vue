@@ -217,6 +217,7 @@
 
 <script setup>
 import { ref, onMounted, computed, inject, watch } from 'vue'
+import axios from 'axios'
 import { useAuthStore } from '../store/auth'
 import { organizationsApi, usersApi, userAgentApi } from '../services/api'
 import SearchBar from '../components/SearchBar.vue'
@@ -659,21 +660,12 @@ async function createUser() {
     console.log('Organization ID being used:', userOrgPayload.organization_id)
     
     try {
-      // Get the current user list to verify the user was created in the database
-      const usersBeforeAssignment = await usersApi.getAll()
-      console.log('Users in database before org assignment:', 
-        usersBeforeAssignment.data.map(u => ({ id: u.id, user_id: u.user_id, email: u.email })))
+      // Skip fetching users to avoid the 500 error
+      console.log('Skipping user verification before org assignment to avoid 500 errors')
       
-      // Check if our newly created user exists in the database
-      const newUserExists = usersBeforeAssignment.data.some(u => 
-        u.user_id === firebaseUid || u.email === formData.value.email)
-      console.log('Newly created user exists in database before org assignment:', newUserExists)
-      
-      // If the user doesn't exist in the database yet, wait a bit longer
-      if (!newUserExists) {
-        console.warn('User not found in database before org assignment. Waiting longer...')
-        await new Promise(resolve => setTimeout(resolve, 3000))
-      }
+      // Wait a bit to ensure database consistency
+      console.log('Waiting for database consistency before org assignment...')
+      await new Promise(resolve => setTimeout(resolve, 3000))
       
       // Implement a retry mechanism for UserOrgs creation
       let retryCount = 0;
@@ -696,7 +688,23 @@ async function createUser() {
           // Make the API call with detailed logging
           console.log(`Attempting to assign user to organization (attempt ${retryCount + 1})...`)
           try {
-            const response = await usersApi.assignToOrganization(userOrgPayload)
+            // Make a direct API call instead of using the wrapper to get more control
+            const apiUrl = `${import.meta.env.VITE_API_URL}/api/v1/user-orgs`
+            console.log(`Making direct API call to ${apiUrl}`)
+            
+            // Get fresh auth token
+            const auth = getFirebaseAuth()
+            const idToken = await auth.currentUser.getIdToken(true)
+            localStorage.setItem('authToken', idToken)
+            
+            // Make the API call with detailed logging
+            const response = await axios.post(apiUrl, userOrgPayload, {
+              headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+              }
+            })
+            
             console.log(`UserOrgs creation API response (attempt ${retryCount + 1}):`, response)
             console.log('User successfully assigned to organization')
             success = true;
@@ -704,8 +712,13 @@ async function createUser() {
             console.error(`Error assigning user to organization (attempt ${retryCount + 1}):`, assignError)
             console.error('Response data:', assignError.response?.data)
             console.error('Response status:', assignError.response?.status)
+            console.error('Request payload:', JSON.stringify(userOrgPayload))
             lastError = assignError
-            throw assignError
+            
+            // Don't throw here, let the retry mechanism handle it
+            if (retryCount >= maxRetries - 1) {
+              throw assignError
+            }
           }
         } catch (retryError) {
           lastError = retryError;
