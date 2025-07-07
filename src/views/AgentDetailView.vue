@@ -358,7 +358,41 @@ async function fetchAssignedUsers() {
     // Create a map to store all users by ID
     const allUsersMap = {};
     
-    // Fetch users from all organizations the user has access to
+    // First, make a direct API call to get all users
+    try {
+      const allUsersResponse = await usersApi.getAll(); // Using getAll without organization ID to get all users
+      if (allUsersResponse && allUsersResponse.data) {
+        let allUsersData = [];
+        
+        if (Array.isArray(allUsersResponse.data)) {
+          allUsersData = allUsersResponse.data;
+        } else if (allUsersResponse.data.users && Array.isArray(allUsersResponse.data.users)) {
+          allUsersData = allUsersResponse.data.users;
+        } else if (typeof allUsersResponse.data === 'object') {
+          allUsersData = [allUsersResponse.data];
+        }
+        
+        console.log(`Fetched ${allUsersData.length} users from global users endpoint`);
+        
+        // Add all users to our map
+        allUsersData.forEach(user => {
+          const userId = user.user_id || user.id;
+          if (userId) {
+            allUsersMap[userId] = {
+              ...user,
+              id: userId,
+              user_id: userId,
+              name: user.display_name || user.name || user.displayName || user.email || `User ${userId}`,
+              email: user.email || 'No Email'
+            };
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching all users:', error);
+    }
+    
+    // Then fetch users from all organizations the user has access to
     for (const org of userOrgs) {
       try {
         const orgUsers = await usersApi.getAll(org.id);
@@ -372,10 +406,16 @@ async function fetchAssignedUsers() {
             orgUsers.data.forEach(user => {
               const userId = user.user_id || user.id;
               if (userId) {
+                // Update or add to our map
                 allUsersMap[userId] = {
+                  ...allUsersMap[userId] || {},
                   ...user,
+                  id: userId,
+                  user_id: userId,
                   organization_id: org.id,
-                  organization_name: org.name
+                  organization_name: org.name,
+                  name: user.display_name || user.name || user.displayName || allUsersMap[userId]?.name || user.email || `User ${userId}`,
+                  email: user.email || allUsersMap[userId]?.email || 'No Email'
                 };
               }
             });
@@ -385,10 +425,16 @@ async function fetchAssignedUsers() {
             const user = orgUsers.data;
             const userId = user.user_id || user.id;
             if (userId) {
+              // Update or add to our map
               allUsersMap[userId] = {
+                ...allUsersMap[userId] || {},
                 ...user,
+                id: userId,
+                user_id: userId,
                 organization_id: org.id,
-                organization_name: org.name
+                organization_name: org.name,
+                name: user.display_name || user.name || user.displayName || allUsersMap[userId]?.name || user.email || `User ${userId}`,
+                email: user.email || allUsersMap[userId]?.email || 'No Email'
               };
               console.log(`Added single user ${userId} from organization ${org.id}`);
             }
@@ -439,6 +485,7 @@ async function fetchAssignedUsers() {
           const currentUserEmail = localStorage.getItem('userEmail') || 'Current User';
           allUsersMap[currentUserId] = {
             id: currentUserId,
+            user_id: currentUserId,
             email: currentUserEmail,
             name: currentUserEmail,
             role: 'User'
@@ -449,6 +496,40 @@ async function fetchAssignedUsers() {
       // Process all user mappings
       const processedUsers = [];
       
+      // First, try to get user details directly from the user API for each user in the mappings
+      for (const mapping of userMappings) {
+        const userId = mapping.user_id || mapping.UserID || mapping.userId || mapping.id;
+        const orgId = mapping.organization_id || mapping.OrganizationID || mapping.organizationId;
+        
+        if (!userId) {
+          console.warn('Mapping missing user ID:', mapping);
+          continue;
+        }
+        
+        // If we don't have this user in our map, try to fetch them directly
+        if (!allUsersMap[userId]) {
+          try {
+            const userResponse = await usersApi.getById(userId);
+            if (userResponse && userResponse.data) {
+              const userData = userResponse.data;
+              allUsersMap[userId] = {
+                ...userData,
+                id: userId,
+                user_id: userId,
+                name: userData.display_name || userData.name || userData.displayName || userData.email || `User ${userId}`,
+                email: userData.email || 'No Email',
+                organization_id: orgId,
+                organization_name: orgId ? (orgNameMap[orgId] || 'Unknown Organization') : 'Unknown Organization'
+              };
+              console.log(`Fetched user ${userId} directly from API`);
+            }
+          } catch (userError) {
+            console.error(`Error fetching user ${userId}:`, userError);
+          }
+        }
+      }
+      
+      // Now process all mappings with our enhanced user data
       userMappings.forEach(mapping => {
         // Extract user and org IDs, handling different field names
         const userId = mapping.user_id || mapping.UserID || mapping.userId || mapping.id;
@@ -466,8 +547,8 @@ async function fetchAssignedUsers() {
         const userObject = {
           id: userId,
           user_id: userId,
-          email: user?.email || 'Unknown Email',
-          name: user?.display_name || user?.name || user?.displayName || user?.email || `User ID: ${userId}`,
+          email: user?.email || 'No Email',
+          name: user?.display_name || user?.name || user?.displayName || user?.email || `User ${userId}`,
           role: user?.role || 'User',
           organization_id: orgId || (user?.organization_id),
           organization_name: orgId ? (orgNameMap[orgId] || 'Unknown Organization') : (user?.organization_name || 'Unknown Organization')
