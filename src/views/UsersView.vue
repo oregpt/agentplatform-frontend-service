@@ -595,7 +595,7 @@ async function createUser() {
       display_name: formData.value.displayName,
       address: formData.value.address || '',
       phone: formData.value.phone || '',
-      metadata: {} // Send as empty object, not as a string
+      metadata: "{}" // Send as empty JSON string, not as an object
     }
     
     // Verify the payload has the correct UID before sending
