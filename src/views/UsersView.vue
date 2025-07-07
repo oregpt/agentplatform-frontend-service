@@ -590,7 +590,7 @@ async function createUser() {
     
     // 2. Create user in Spanner Users table
     const userPayload = {
-      user_id: firebaseUid, // Explicitly use Firebase UID
+      id: firebaseUid, // Changed from user_id to id to match backend model's JSON tag
       email: formData.value.email,
       display_name: formData.value.displayName,
       address: formData.value.address || '',
@@ -600,7 +600,7 @@ async function createUser() {
     
     // Verify the payload has the correct UID before sending
     console.log('Creating user in Spanner Users table with payload:', JSON.stringify(userPayload, null, 2))
-    console.log('Verifying user_id is set correctly:', userPayload.user_id === firebaseUid)
+    console.log('Verifying id is set correctly:', userPayload.id === firebaseUid)
     
     try {
       // Try to get a fresh auth token before creating the user
@@ -645,7 +645,7 @@ async function createUser() {
     
     // 3. Create entry in UserOrgs table
     const userOrgPayload = {
-      user_id: firebaseUid, // Use the same Firebase UID
+      user_id: firebaseUid, // Keep as user_id for UserOrgs table
       organization_id: formData.value.assignedOrgId,
       role: formData.value.orgRole,
       // Include these fields to ensure they're properly set in the UserOrgs table
@@ -694,10 +694,19 @@ async function createUser() {
           }
           
           // Make the API call with detailed logging
-          const response = await usersApi.assignToOrganization(userOrgPayload)
-          console.log(`UserOrgs creation API response (attempt ${retryCount + 1}):`, response)
-          console.log('User successfully assigned to organization')
-          success = true;
+          console.log(`Attempting to assign user to organization (attempt ${retryCount + 1})...`)
+          try {
+            const response = await usersApi.assignToOrganization(userOrgPayload)
+            console.log(`UserOrgs creation API response (attempt ${retryCount + 1}):`, response)
+            console.log('User successfully assigned to organization')
+            success = true;
+          } catch (assignError) {
+            console.error(`Error assigning user to organization (attempt ${retryCount + 1}):`, assignError)
+            console.error('Response data:', assignError.response?.data)
+            console.error('Response status:', assignError.response?.status)
+            lastError = assignError
+            throw assignError
+          }
         } catch (retryError) {
           lastError = retryError;
           retryCount++;
