@@ -107,7 +107,9 @@ export const usersApi = {
   getById: (userId) => api.get(`/users/${userId}`),
   create: (data) => api.post('/users', data),
   update: (userId, data) => api.put(`/users/${userId}`, data),
-  delete: (userId) => api.delete(`/users/${userId}`)
+  delete: (userId) => api.delete(`/users/${userId}`),
+  // Assign a user to an organization
+  assignToOrganization: (data) => api.post('/user-orgs', data)
 }
 
 // User-Agent API

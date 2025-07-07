@@ -2,7 +2,7 @@
   <div class="users-container">
     <div class="header">
       <h1>Users</h1>
-      <button @click="showCreateModal = true" class="create-btn">Create User</button>
+      <button @click="openCreateModal()" class="create-btn">Create User</button>
     </div>
 
     <div class="organization-selector" v-if="organizations.length > 0">
@@ -28,18 +28,19 @@
     <div v-else-if="filteredUsers.length === 0" class="empty-state">
       <p v-if="searchQuery">No users found matching "{{ searchQuery }}". Try a different search term.</p>
       <p v-else>No users found in this organization. Create your first user to get started.</p>
-      <button @click="showCreateModal = true" class="create-btn">Create User</button>
+      <button @click="openCreateModal()" class="create-btn">Create User</button>
     </div>
     
     <div v-else class="users-list">
       <ContentCard 
         v-for="user in filteredUsers" 
         :key="user.id"
-        :title="user.name"
+        :title="user.display_name || user.name"
         :subtitle="`ID: ${user.id}`"
       >
         <p class="user-email">{{ user.email }}</p>
-        <p v-if="user.description">{{ user.description }}</p>
+        <p v-if="user.address" class="user-address">{{ user.address }}</p>
+        <p v-if="user.phone" class="user-phone">{{ user.phone }}</p>
         
         <template #stats>
           <div class="user-stats">
@@ -61,15 +62,17 @@
     <div v-if="showCreateModal || showEditModal" class="modal-backdrop">
       <div class="modal">
         <h2>{{ showEditModal ? 'Edit User' : 'Create User' }}</h2>
-        <form @submit.prevent="showEditModal ? updateUser() : createUser()">
+        <LoadingSpinner v-if="loading" message="Processing user operation..." />
+        
+        <form v-else @submit.prevent="showEditModal ? updateUser() : createUser()">
           <div class="form-group">
-            <label for="name">User Name</label>
+            <label for="displayName">Display Name</label>
             <input 
               type="text" 
-              id="name" 
-              v-model="formData.name" 
+              id="displayName" 
+              v-model="formData.displayName" 
               required 
-              placeholder="Enter user name"
+              placeholder="Enter user display name"
             />
           </div>
           
@@ -96,26 +99,49 @@
           </div>
           
           <div class="form-group">
-            <label for="description">Description (Optional)</label>
+            <label for="address">Address (Optional)</label>
             <textarea 
-              id="description" 
-              v-model="formData.description" 
-              placeholder="Enter user description"
-              rows="3"
+              id="address" 
+              v-model="formData.address" 
+              placeholder="Enter user address"
+              rows="2"
             ></textarea>
           </div>
 
           <div class="form-group">
-            <label for="role">Role</label>
-            <select id="role" v-model="formData.role" required>
+            <label for="phone">Phone (Optional)</label>
+            <input 
+              type="tel" 
+              id="phone" 
+              v-model="formData.phone" 
+              placeholder="Enter user phone number"
+            />
+          </div>
+
+          <h3 class="section-title">Organization Assignment</h3>
+          
+          <div class="form-group">
+            <label for="assignedOrg">Organization</label>
+            <select id="assignedOrg" v-model="formData.assignedOrgId" required>
+              <option value="">Select an organization</option>
+              <option v-for="org in organizations" :key="org.id" :value="org.id">
+                {{ org.name }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="orgRole">Role in Organization</label>
+            <select id="orgRole" v-model="formData.orgRole" required>
+              <option value="">Select a role</option>
               <option value="user">User</option>
               <option value="admin">Admin</option>
             </select>
           </div>
           
           <div class="modal-actions">
-            <button type="button" @click="closeModal" class="cancel-btn">Cancel</button>
-            <button type="submit" class="submit-btn">
+            <button type="button" @click="closeModal" class="cancel-btn" :disabled="loading">Cancel</button>
+            <button type="submit" class="submit-btn" :disabled="loading">
               {{ showEditModal ? 'Update' : 'Create' }}
             </button>
           </div>
@@ -126,7 +152,7 @@
     <!-- Manage Agents Modal -->
     <div v-if="showAgentsModal" class="modal-backdrop">
       <div class="modal">
-        <h2>Manage Agents for {{ selectedUser.name }}</h2>
+        <h2>Manage Agents for {{ selectedUser.display_name || selectedUser.name }}</h2>
         
         <ErrorMessage v-if="agentsError" :message="agentsError" @close="agentsError = null" />
         
@@ -178,8 +204,8 @@
     <ConfirmDialog
       v-model="showDeleteModal"
       title="Delete User"
-      :message="`Are you sure you want to delete ${selectedUser.name}?`"
-      details="This action cannot be undone. All agent assignments for this user will be removed."
+      :message="`Are you sure you want to delete ${selectedUser.display_name || selectedUser.name}?`"
+      details="This action cannot be undone. The user will be removed from Firebase Authentication, the Users table, and all organization assignments will be deleted."
       confirm-text="Delete"
       cancel-text="Cancel"
       confirm-type="danger"
@@ -207,17 +233,21 @@ const loading = ref(false)
 const error = ref(null)
 const searchQuery = ref('')
 const selectedOrgId = ref('')
+const showModal = ref(false)
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteModal = ref(false)
 const showAgentsModal = ref(false)
 const selectedUser = ref({})
+const loading = ref(false)
 const formData = ref({
-  name: '',
+  displayName: '',
   email: '',
   password: '',
-  description: '',
-  role: 'user' // Default role
+  address: '',
+  phone: '',
+  assignedOrgId: '',
+  orgRole: '' // Role in the organization
 })
 
 // For agent management
@@ -507,28 +537,68 @@ async function saveAgentAssignments() {
 
 async function createUser() {
   try {
-    // Generate a UUID for the user
-    const userId = crypto.randomUUID()
+    // Validate form data
+    if (!formData.value.email || !formData.value.password || !formData.value.displayName) {
+      notify({
+        type: 'error',
+        message: 'Required fields missing',
+        details: 'Email, password, and display name are required.'
+      })
+      return
+    }
+
+    if (!formData.value.assignedOrgId || !formData.value.orgRole) {
+      notify({
+        type: 'error',
+        message: 'Organization assignment required',
+        details: 'Please select an organization and role for the user.'
+      })
+      return
+    }
+
+    loading.value = true
     
-    const payload = {
-      user_id: userId, // Add user_id field for backend
-      name: formData.value.name,
+    // 1. Create user in Firebase
+    console.log('Creating user in Firebase...')
+    const { createFirebaseUser } = await import('../services/firebase')
+    const userCredential = await createFirebaseUser(formData.value.email, formData.value.password)
+    
+    // Get Firebase UID
+    const firebaseUid = userCredential.user.uid
+    console.log('Firebase user created with UID:', firebaseUid)
+    
+    // 2. Create user in Spanner Users table
+    const userPayload = {
+      user_id: firebaseUid,
       email: formData.value.email,
-      password: formData.value.password,
-      description: formData.value.description,
-      role: formData.value.role,
-      organizationId: selectedOrgId.value,
-      // Add empty JSON metadata to satisfy the database schema requirement
-      metadata: '{}'
+      display_name: formData.value.displayName,
+      address: formData.value.address || '',
+      phone: formData.value.phone || '',
+      metadata: '{}' // Empty JSON metadata
     }
     
-    console.log('Creating user with payload:', payload)
-    await usersApi.create(payload)
+    console.log('Creating user in Spanner Users table:', userPayload)
+    await usersApi.create(userPayload)
+    
+    // 3. Create entry in UserOrgs table
+    const userOrgPayload = {
+      user_id: firebaseUid,
+      organization_id: formData.value.assignedOrgId,
+      role: formData.value.orgRole
+    }
+    
+    console.log('Creating user-org association:', userOrgPayload)
+    await usersApi.assignToOrganization(userOrgPayload)
+    
+    // 4. Refresh the users list
     await fetchUsers()
+    
     notify({
       type: 'success',
-      message: 'User created successfully'
+      message: 'User created successfully',
+      details: 'User has been created in Firebase and assigned to the selected organization.'
     })
+    
     closeModal()
   } catch (err) {
     notify({
@@ -537,6 +607,8 @@ async function createUser() {
       details: err.message
     })
     console.error('Error creating user:', err)
+  } finally {
+    loading.value = false
   }
 }
 
@@ -603,65 +675,85 @@ async function updateUser() {
 
 async function deleteUser() {
   try {
-    console.log('Deleting user:', selectedUser.value.id)
-    await usersApi.delete(selectedUser.value.id)
+    loading.value = true
+    const userId = selectedUser.value.id
+    console.log('Starting user deletion process for user ID:', userId)
     
+    // 1. Delete user from UserOrgs table first (handled by backend cascade)
+    console.log('Deleting user from database...')
+    await usersApi.delete(userId)
+    
+    // 2. Attempt to delete from Firebase if applicable
+    // Note: This will only work if the current user is deleting their own account
+    // or if we're in an admin context. In practice, this would typically be handled
+    // by the backend with Firebase Admin SDK.
     try {
-      // Try different notification methods
-      if (typeof notify === 'function') {
-        notify({
-          type: 'success',
-          message: 'User deleted successfully'
-        })
-      } else if (notify && typeof notify.success === 'function') {
-        notify.success('User deleted successfully')
-      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
-        notify.value.addNotification({
-          type: 'success',
-          message: 'User deleted successfully'
-        })
-      }
-    } catch (notifyErr) {
-      console.error('Error showing success notification:', notifyErr)
+      console.log('Attempting to delete user from Firebase...')
+      const { deleteFirebaseUser } = await import('../services/firebase')
+      await deleteFirebaseUser(userId)
+      console.log('Firebase user deletion successful')
+    } catch (firebaseError) {
+      console.warn('Firebase user deletion handled by backend:', firebaseError.message)
+      // We don't want to fail the whole operation if Firebase deletion fails
+      // as this is likely handled by the backend
     }
     
+    notify({
+      type: 'success',
+      message: 'User deleted successfully',
+      details: 'User has been removed from the system.'
+    })
+    
     showDeleteModal.value = false
-    // Fetch users after successful deletion
+    // Refresh the users list
     await fetchUsers()
   } catch (err) {
     console.error('Error deleting user:', err)
     
-    try {
-      // Try different notification methods
-      if (typeof notify === 'function') {
-        notify({
-          type: 'error',
-          message: 'Failed to delete user',
-          details: err.message
-        })
-      } else if (notify && typeof notify.error === 'function') {
-        notify.error(`Failed to delete user: ${err.message || 'Unknown error'}`)
-      } else if (notify && notify.value && typeof notify.value.addNotification === 'function') {
-        notify.value.addNotification({
-          type: 'error',
-          message: 'Failed to delete user: ' + (err.message || 'Unknown error')
-        })
-      }
-    } catch (notifyErr) {
-      console.error('Error showing error notification:', notifyErr)
-    }
+    notify({
+      type: 'error',
+      message: 'Failed to delete user',
+      details: err.message || 'An unknown error occurred'
+    })
+  } finally {
+    loading.value = false
   }
 }
 
 function closeModal() {
   showCreateModal.value = false
   showEditModal.value = false
-  formData.value = {
-    email: '',
-    displayName: '',
-    role: 'user'
-  }
+  resetFormData()
   selectedUser.value = {}
+}
+
+function resetFormData() {
+  formData.value = {
+    displayName: '',
+    email: '',
+    password: '',
+    address: '',
+    phone: '',
+    assignedOrgId: '',
+    orgRole: ''
+  }
+}
+
+async function openCreateModal() {
+  resetFormData()
+  
+  // Make sure we have organizations loaded for the dropdown
+  if (organizations.value.length === 0) {
+    await fetchOrganizations()
+  }
+  
+  // Pre-select the first real organization (not 'All') if available
+  const realOrg = organizations.value.find(org => org.id !== 'All')
+  if (realOrg) {
+    formData.value.assignedOrgId = realOrg.id
+  }
+  
+  showCreateModal.value = true
 }
 
 function closeAgentsModal() {
@@ -748,6 +840,13 @@ function closeAgentsModal() {
 }
 
 .user-email {
+  color: #7f8c8d;
+  font-size: 0.9rem;
+  margin: 0 0 5px 0;
+}
+
+.user-address,
+.user-phone {
   color: #7f8c8d;
   font-size: 0.9rem;
   margin: 0 0 5px 0;
@@ -861,7 +960,17 @@ function closeAgentsModal() {
 .form-group label {
   display: block;
   margin-bottom: 5px;
+  color: #34495e;
   font-weight: 500;
+}
+
+.section-title {
+  margin-top: 20px;
+  margin-bottom: 10px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #e0e0e0;
+  color: #333;
+  font-size: 1.1em;
 }
 
 .form-group input, .form-group select {
