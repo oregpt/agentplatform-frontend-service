@@ -49,6 +49,7 @@
         </select>
         <p>Selected organization ID: {{ testDropdownValue }}</p>
         <p v-if="testDropdownValue">Selected organization name: {{ getOrgName(testDropdownValue) }}</p>
+        <p><strong>Total Organizations:</strong> {{ organizations.length }}</p>
       </div>
       
       <div class="actions secondary-actions">
@@ -309,9 +310,38 @@ async function fetchAgentData() {
     console.log('Raw agent data from API:', JSON.stringify(agentResponse.data, null, 2))
     agent.value = agentResponse.data
     
-    // Fetch organizations
-    const orgsResponse = await organizationsApi.getAll()
-    organizations.value = orgsResponse.data
+    // Fetch organizations - similar to AgentsView implementation
+    try {
+      const orgsResponse = await organizationsApi.getAll()
+      
+      if (orgsResponse.data && orgsResponse.data.organizations) {
+        // Store real organizations first
+        const realOrgs = orgsResponse.data.organizations
+        
+        // Add 'All' option if user has access to multiple organizations
+        if (realOrgs.length > 1) {
+          organizations.value = [{ id: 'All', name: 'All Organizations' }, ...realOrgs]
+        } else {
+          organizations.value = [...realOrgs]
+        }
+      } else if (Array.isArray(orgsResponse.data)) {
+        const realOrgs = orgsResponse.data
+        
+        // Add 'All' option if user has access to multiple organizations
+        if (realOrgs.length > 1) {
+          organizations.value = [{ id: 'All', name: 'All Organizations' }, ...realOrgs]
+        } else {
+          organizations.value = [...realOrgs]
+        }
+      } else {
+        organizations.value = []
+      }
+      
+      console.log('Organizations loaded in AgentDetailView:', organizations.value.length)
+    } catch (orgError) {
+      console.error('Error fetching organizations:', orgError)
+      organizations.value = []
+    }
     
     // Check if we have an organization ID from the route query
     const queryOrgId = route.query.orgId
@@ -531,7 +561,17 @@ async function removeUser(user) {
 const handleTestOrgChange = () => {
   console.log('Test organization changed to:', testDropdownValue.value)
   console.log('Organization name:', getOrgName(testDropdownValue.value))
+  
+  // Log organization details for debugging
+  if (testDropdownValue.value) {
+    const selectedOrg = organizations.value.find(org => org.id === testDropdownValue.value)
+    if (selectedOrg) {
+      console.log('Selected organization details:', selectedOrg)
+    }
+  }
+  
   // This is just for testing - no actual data fetching needed yet
+  // In the future, this could be used to filter agents by organization
 }
 
 const openEditModal = () => {

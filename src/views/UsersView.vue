@@ -595,51 +595,52 @@ async function createUser() {
       display_name: formData.value.displayName,
       address: formData.value.address || '',
       phone: formData.value.phone || '',
-      metadata: '{}' // Empty JSON metadata
+      metadata: {} // Send as empty object, not as a string
     }
     
     // Verify the payload has the correct UID before sending
     console.log('Creating user in Spanner Users table with payload:', JSON.stringify(userPayload, null, 2))
     console.log('Verifying user_id is set correctly:', userPayload.user_id === firebaseUid)
     
-    // Make the API call with detailed logging
     try {
-      const response = await usersApi.create(userPayload)
-      console.log('User creation API response:', response)
-      console.log('User created in database successfully with ID:', userPayload.user_id)
-    } catch (error) {
-      console.error('Failed to create user in database:', error)
-      console.error('Error response data:', error.response?.data)
-      throw error
-    }
-    console.log('User created in database successfully')
-    
-    // Wait longer to ensure the user is fully created and indexed in the database
-    console.log('Waiting for database consistency...')
-    
-    // First wait period
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    // Verify the user exists in the database before proceeding
-    try {
-      console.log('Verifying user exists in database after creation...')
-      const allUsers = await usersApi.getAll()
-      const userExists = allUsers.data.some(user => 
-        user.user_id === firebaseUid || 
-        user.email === formData.value.email
-      )
-      
-      if (!userExists) {
-        console.warn('User not found in database after creation. Waiting longer...')
-        // Wait even longer if user not found
-        await new Promise(resolve => setTimeout(resolve, 3000))
-      } else {
-        console.log('User confirmed to exist in database')
+      // Try to get a fresh auth token before creating the user
+      const auth = getFirebaseAuth()
+      const currentUser = auth.currentUser
+      if (currentUser) {
+        const idToken = await currentUser.getIdToken(true) // Force refresh the token
+        localStorage.setItem('authToken', idToken)
+        console.log('Refreshed auth token before API call')
       }
-    } catch (verifyError) {
-      console.error('Error verifying user in database:', verifyError)
-      // Continue anyway, but with additional wait
-      await new Promise(resolve => setTimeout(resolve, 3000))
+      
+      await usersApi.create(userPayload)
+      console.log('User created in database successfully with ID:', firebaseUid)
+      
+      // Wait for database consistency
+      console.log('Waiting for database consistency...')
+      await new Promise(resolve => setTimeout(resolve, 3000)) // Increased wait time
+      
+      // Skip verification as it's causing 500 errors
+      console.log('Skipping user verification to avoid 500 errors')
+    } catch (createError) {
+      console.error('Error creating user in database:', createError)
+      // If we get a 401/403, try to refresh the token and retry once
+      if (createError.response && (createError.response.status === 401 || createError.response.status === 403)) {
+        try {
+          console.log('Auth error detected, refreshing token and retrying...')
+          const auth = getFirebaseAuth()
+          const idToken = await auth.currentUser.getIdToken(true)
+          localStorage.setItem('authToken', idToken)
+          
+          // Retry the create call
+          await usersApi.create(userPayload)
+          console.log('User created in database successfully on retry')
+        } catch (retryError) {
+          console.error('Error on retry:', retryError)
+          throw retryError
+        }
+      } else {
+        throw createError
+      }
     }
     
     // 3. Create entry in UserOrgs table
@@ -649,7 +650,7 @@ async function createUser() {
       role: formData.value.orgRole,
       // Include these fields to ensure they're properly set in the UserOrgs table
       email: formData.value.email,
-      display_name: formData.value.displayName
+      display_name: formData.value.displayName || ''
     }
     
     // Verify the UserOrgs payload has the correct UID before sending
@@ -682,6 +683,16 @@ async function createUser() {
       
       while (retryCount < maxRetries && !success) {
         try {
+          // Try to refresh the token before each attempt
+          if (retryCount > 0) {
+            console.log('Refreshing auth token before retry...')
+            const auth = getFirebaseAuth()
+            if (auth.currentUser) {
+              const idToken = await auth.currentUser.getIdToken(true)
+              localStorage.setItem('authToken', idToken)
+            }
+          }
+          
           // Make the API call with detailed logging
           const response = await usersApi.assignToOrganization(userOrgPayload)
           console.log(`UserOrgs creation API response (attempt ${retryCount + 1}):`, response)
@@ -691,9 +702,10 @@ async function createUser() {
           lastError = retryError;
           retryCount++;
           console.warn(`UserOrgs creation failed (attempt ${retryCount}/${maxRetries}):`, retryError.message)
+          console.error('Error details:', retryError.response?.data || 'No response data')
           
           if (retryCount < maxRetries) {
-            // Wait before retrying
+            // Wait before retrying with increasing backoff
             const waitTime = 2000 * retryCount; // Increase wait time with each retry
             console.log(`Waiting ${waitTime}ms before retry...`)
             await new Promise(resolve => setTimeout(resolve, waitTime))
