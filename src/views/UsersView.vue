@@ -34,9 +34,9 @@
     <div v-else class="users-list">
       <ContentCard 
         v-for="user in filteredUsers" 
-        :key="user.id"
+        :key="user.user_id || user.id"
         :title="user.display_name || user.name"
-        :subtitle="`ID: ${user.id}`"
+        :subtitle="`ID: ${user.user_id || user.id}`"
       >
         <p class="user-email">{{ user.email }}</p>
         <p v-if="user.address" class="user-address">{{ user.address }}</p>
@@ -568,7 +568,7 @@ async function createUser() {
     
     // 2. Create user in Spanner Users table
     const userPayload = {
-      user_id: firebaseUid,
+      user_id: firebaseUid, // Explicitly use Firebase UID
       email: formData.value.email,
       display_name: formData.value.displayName,
       address: formData.value.address || '',
@@ -579,15 +579,33 @@ async function createUser() {
     console.log('Creating user in Spanner Users table:', userPayload)
     await usersApi.create(userPayload)
     
+    // Wait a moment to ensure the user is created in the database
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
     // 3. Create entry in UserOrgs table
     const userOrgPayload = {
-      user_id: firebaseUid,
+      user_id: firebaseUid, // Use the same Firebase UID
       organization_id: formData.value.assignedOrgId,
-      role: formData.value.orgRole
+      role: formData.value.orgRole,
+      // Include these fields to ensure they're properly set in the UserOrgs table
+      email: formData.value.email,
+      display_name: formData.value.displayName
     }
     
     console.log('Creating user-org association:', userOrgPayload)
-    await usersApi.assignToOrganization(userOrgPayload)
+    try {
+      await usersApi.assignToOrganization(userOrgPayload)
+      console.log('User successfully assigned to organization')
+    } catch (orgErr) {
+      console.error('Error assigning user to organization:', orgErr)
+      // Don't throw here, we'll still consider the user creation successful
+      // but notify the user about the organization assignment issue
+      notify({
+        type: 'warning',
+        message: 'User created but organization assignment failed',
+        details: 'The user was created but could not be assigned to the organization. Please try assigning them manually.'
+      })
+    }
     
     // 4. Refresh the users list
     await fetchUsers()

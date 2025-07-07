@@ -178,9 +178,6 @@
               <option value="">Select AI Provider</option>
               <option value="OpenAI">OpenAI</option>
               <option value="Anthropic">Anthropic</option>
-              <option value="Google">Google</option>
-              <option value="Azure">Azure</option>
-              <option value="Custom">Custom</option>
             </select>
             <p class="help-text">The AI provider that will power this agent</p>
           </div>
@@ -311,8 +308,13 @@ async function fetchAgentData() {
     }
 
     // Fetch files for this agent
-    const filesResponse = await filesApi.getByAgentId(agentId.value)
-    files.value = filesResponse.data
+    try {
+      const filesResponse = await filesApi.getByAgentId(agentId.value)
+      files.value = filesResponse.data
+    } catch (fileError) {
+      console.error('Error fetching files for agent:', fileError)
+      files.value = []
+    }
   } catch (error) {
     console.error('Error fetching agent details:', error)
   } finally {
@@ -355,7 +357,9 @@ async function fetchAssignedUsers(orgId) {
     
     // Create a map of users by ID for quick lookup
     allUsers.forEach(user => {
-      allUsersMap[user.id] = user;
+      // Use user_id if available, otherwise fall back to id
+      const userId = user.user_id || user.id;
+      allUsersMap[userId] = user;
     });
     
     // Get all users assigned to this agent using the new endpoint with org ID
@@ -364,11 +368,14 @@ async function fetchAssignedUsers(orgId) {
     if (response.data) {
       // Map the user IDs from UserAgent table to actual user objects
       users.value = response.data.map(mapping => {
-        const user = allUsersMap[mapping.userId];
+        // Normalize userId to handle both formats
+        const userId = mapping.user_id || mapping.userId;
+        const user = allUsersMap[userId];
         return {
-          id: mapping.userId,
+          id: userId,
+          user_id: userId, // Add this field explicitly for consistency
           email: user?.email || 'Unknown Email',
-          name: user?.name || user?.displayName || user?.email || `User ID: ${mapping.userId}`,
+          name: user?.display_name || user?.name || user?.displayName || user?.email || `User ID: ${userId}`,
           role: user?.role || 'User'
         };
       });
@@ -505,8 +512,25 @@ const openEditModal = () => {
   console.log('Current agent data:', agent.value)
   
   // Ensure aiProvider is properly set from the database value
-  const aiProvider = agent.value.aiProvider || ''
-  console.log('AI Provider from database:', aiProvider)
+  // Normalize the value to match our dropdown options
+  let aiProvider = agent.value.aiProvider || ''
+  
+  // Normalize the AI provider value to match our dropdown options
+  if (aiProvider && typeof aiProvider === 'string') {
+    const normalizedValue = aiProvider.trim()
+    // Only allow OpenAI or Anthropic
+    if (normalizedValue.toLowerCase().includes('openai')) {
+      aiProvider = 'OpenAI'
+    } else if (normalizedValue.toLowerCase().includes('anthropic')) {
+      aiProvider = 'Anthropic'
+    } else {
+      // Default to empty if not recognized
+      console.warn(`Unrecognized AI provider value: ${normalizedValue}, defaulting to empty selection`)
+      aiProvider = ''
+    }
+  }
+  
+  console.log('AI Provider from database (normalized):', aiProvider)
   
   formData.value = {
     name: agent.value.name || '',
