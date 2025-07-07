@@ -559,7 +559,7 @@ async function createUser() {
     
     // 1. Create user in Firebase
     console.log('Creating user in Firebase...', formData.value.email)
-    const { createFirebaseUser, getAuth } = await import('../services/firebase')
+    const { createFirebaseUser, getFirebaseAuth } = await import('../services/firebase')
     
     // Create the user in Firebase Authentication
     const userCredential = await createFirebaseUser(formData.value.email, formData.value.password)
@@ -578,7 +578,7 @@ async function createUser() {
     console.log('UID type:', typeof firebaseUid, 'UID length:', firebaseUid.length)
     
     // Double-check that the user is actually created in Firebase by getting the current user
-    const auth = getAuth()
+    const auth = getFirebaseAuth()
     await new Promise(resolve => setTimeout(resolve, 1000)) // Wait for Firebase to complete
     const currentUser = auth.currentUser
     console.log('Current Firebase user after creation:', currentUser)
