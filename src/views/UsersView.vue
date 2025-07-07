@@ -239,7 +239,6 @@ const showEditModal = ref(false)
 const showDeleteModal = ref(false)
 const showAgentsModal = ref(false)
 const selectedUser = ref({})
-const loading = ref(false)
 const formData = ref({
   displayName: '',
   email: '',
