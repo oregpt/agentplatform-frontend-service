@@ -170,28 +170,45 @@ async function fetchFiles() {
     const response = await filesApi.getAll(agentId.value)
     console.log('Files response:', response.data)
     
+    let fetchedFiles = [];
+    
     // Handle different response formats
     if (Array.isArray(response.data)) {
-      files.value = response.data
+      fetchedFiles = response.data
     } else if (response.data && Array.isArray(response.data.files)) {
-      files.value = response.data.files
-    } else if (response.data) {
-      files.value = [response.data] // Single file
+      fetchedFiles = response.data.files
+    } else if (response.data && response.data.id) {
+      fetchedFiles = [response.data] // Single file
     } else {
-      files.value = []
+      fetchedFiles = []
     }
     
-    // Ensure all files have required properties
-    files.value = files.value.map(file => ({
+    // Filter out invalid files (missing ID or name)
+    fetchedFiles = fetchedFiles.filter(file => {
+      // Check if file has a valid ID
+      if (!file || !file.id) {
+        console.warn('Filtering out file with missing ID:', file)
+        return false
+      }
+      
+      // Check if file has a valid name
+      if (!file.name) {
+        console.warn('Filtering out file with missing name:', file.id)
+        return false
+      }
+      
+      return true
+    })
+    
+    // Process valid files with proper defaults
+    files.value = fetchedFiles.map(file => ({
       ...file,
-      id: file.id || '',
-      name: file.name || 'Unnamed File',
       sizeBytes: file.sizeBytes || 0,
       contentType: file.contentType || 'text/markdown',
       createdAt: file.createdAt || new Date().toISOString()
     }))
     
-    console.log('Processed files:', files.value)
+    console.log('Processed files after filtering:', files.value)
   } catch (error) {
     console.error('Error fetching files:', error)
     files.value = []
@@ -361,8 +378,22 @@ async function deleteFile() {
   
   try {
     console.log(`Deleting file with ID: ${selectedFile.value.id}`)
-    await filesApi.delete(selectedFile.value.id)
+    
+    // Store file info for UI update
+    const fileId = selectedFile.value.id
+    const fileName = selectedFile.value.name
+    
+    // Call API to delete the file
+    await filesApi.delete(fileId)
+    
+    // Immediately remove the file from the local array for instant UI feedback
+    files.value = files.value.filter(file => file.id !== fileId)
+    console.log(`File ${fileName} (ID: ${fileId}) removed from UI`)
+    
+    // Then refresh the full list from the server
     await fetchFiles()
+    
+    // Close the modal
     showDeleteModal.value = false
   } catch (error) {
     console.error('Error deleting file:', error)
