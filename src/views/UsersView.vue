@@ -667,78 +667,38 @@ async function createUser() {
       // Skip fetching users to avoid the 500 error
       console.log('Skipping user verification before org assignment to avoid 500 errors')
       
-      // Wait a bit to ensure database consistency
-      console.log('Waiting for database consistency before org assignment...')
-      await new Promise(resolve => setTimeout(resolve, 3000))
-      
-      // Implement a retry mechanism for UserOrgs creation
-      let retryCount = 0;
-      const maxRetries = 3;
-      let success = false;
-      let lastError = null;
-      
-      while (retryCount < maxRetries && !success) {
-        try {
-          // Try to refresh the token before each attempt
-          if (retryCount > 0) {
-            console.log('Refreshing auth token before retry...')
-            const auth = getFirebaseAuth()
-            if (auth.currentUser) {
-              const idToken = await auth.currentUser.getIdToken(true)
-              localStorage.setItem('authToken', idToken)
-            }
+      // Make the API call with detailed logging
+      console.log('Attempting to assign user to organization...')
+      try {
+        // Make a direct API call instead of using the wrapper to get more control
+        const baseUrl = import.meta.env.VITE_API_URL || 'https://agentplatform-backend-service-748547744737.us-central1.run.app'
+        const apiUrl = `${baseUrl}/api/v1/user-orgs`
+        console.log(`Making API call to ${apiUrl}`)
+        
+        // Get fresh auth token
+        const auth = getFirebaseAuth()
+        const idToken = await auth.currentUser.getIdToken(true)
+        localStorage.setItem('authToken', idToken)
+        
+        // Log the exact payload being sent
+        console.log('UserOrg payload:', JSON.stringify(userOrgPayload, null, 2))
+        
+        // Make the API call
+        const response = await axios.post(apiUrl, userOrgPayload, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json'
           }
-          
-          // Make the API call with detailed logging
-          console.log(`Attempting to assign user to organization (attempt ${retryCount + 1})...`)
-          try {
-            // Make a direct API call instead of using the wrapper to get more control
-            // Fix: Use proper environment variable access with fallback
-            const baseUrl = import.meta.env.VITE_API_URL || 'https://agentplatform-backend-service-748547744737.us-central1.run.app'
-            const apiUrl = `${baseUrl}/api/v1/user-orgs`
-            console.log(`Making direct API call to ${apiUrl}`)
-            
-            // Get fresh auth token
-            const auth = getFirebaseAuth()
-            const idToken = await auth.currentUser.getIdToken(true)
-            localStorage.setItem('authToken', idToken)
-            
-            // Make the API call with detailed logging
-            const response = await axios.post(apiUrl, userOrgPayload, {
-              headers: {
-                'Authorization': `Bearer ${idToken}`,
-                'Content-Type': 'application/json'
-              }
-            })
-            
-            console.log(`UserOrgs creation API response (attempt ${retryCount + 1}):`, response)
-            console.log('User successfully assigned to organization')
-            success = true;
-          } catch (assignError) {
-            console.error(`Error assigning user to organization (attempt ${retryCount + 1}):`, assignError)
-            console.error('Response data:', assignError.response?.data)
-            console.error('Response status:', assignError.response?.status)
-            console.error('Request payload:', JSON.stringify(userOrgPayload))
-            lastError = assignError
-            
-            // Don't throw here, let the retry mechanism handle it
-            if (retryCount >= maxRetries - 1) {
-              throw assignError
-            }
-          }
-        } catch (retryError) {
-          lastError = retryError;
-          retryCount++;
-          console.warn(`UserOrgs creation failed (attempt ${retryCount}/${maxRetries}):`, retryError.message)
-          console.error('Error details:', retryError.response?.data || 'No response data')
-          
-          if (retryCount < maxRetries) {
-            // Wait before retrying with increasing backoff
-            const waitTime = 2000 * retryCount; // Increase wait time with each retry
-            console.log(`Waiting ${waitTime}ms before retry...`)
-            await new Promise(resolve => setTimeout(resolve, waitTime))
-          }
-        }
+        })
+        
+        console.log('UserOrgs creation API response:', response)
+        console.log('User successfully assigned to organization')
+      } catch (error) {
+        console.error('Error assigning user to organization:', error)
+        console.error('Response data:', error.response?.data)
+        console.error('Response status:', error.response?.status)
+        console.error('Request payload:', JSON.stringify(userOrgPayload))
+        throw error
       }
       
       // If all retries failed, throw the last error
