@@ -31,31 +31,35 @@
       <button @click="openCreateModal()" class="create-btn">Create User</button>
     </div>
     
-    <div v-else class="users-list">
-      <ContentCard 
-        v-for="user in filteredUsers" 
-        :key="user.user_id || user.id"
-        :title="user.display_name || user.name"
-        :subtitle="`ID: ${user.user_id || user.id}`"
-      >
-        <p class="user-email">{{ user.email }}</p>
-        <p v-if="user.address" class="user-address">{{ user.address }}</p>
-        <p v-if="user.phone" class="user-phone">{{ user.phone }}</p>
-        
-        <template #stats>
-          <div class="user-stats">
-            <div class="stat">
-              <span class="stat-label">Agents</span>
-              <span class="stat-value">{{ user.agentsCount || 0 }}</span>
-            </div>
-          </div>
-        </template>
-        <template #actions>
-          <button @click="manageAgents(user)" class="agents-btn">Manage Agents</button>
-          <button @click="editUser(user)" class="edit-btn">Edit</button>
-          <button @click="confirmDelete(user)" class="delete-btn">Delete</button>
-        </template>
-      </ContentCard>
+    <div v-else class="users-table-container">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>ID</th>
+            <th>Address</th>
+            <th>Phone</th>
+            <th>Agents</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="user in filteredUsers" :key="user.user_id || user.id">
+            <td>{{ user.display_name || user.name }}</td>
+            <td>{{ user.email }}</td>
+            <td class="user-id">{{ user.user_id || user.id }}</td>
+            <td>{{ user.address || '-' }}</td>
+            <td>{{ user.phone || '-' }}</td>
+            <td class="agents-count">{{ user.agentsCount || 0 }}</td>
+            <td class="actions-cell">
+              <button @click="manageAgents(user)" class="agents-btn">Manage Agents</button>
+              <button @click="editUser(user)" class="edit-btn">Edit</button>
+              <button @click="confirmDelete(user)" class="delete-btn">Delete</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- Create/Edit Modal -->
@@ -982,20 +986,54 @@ function closeAgentsModal() {
   color: #7f8c8d;
 }
 
-.users-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 20px;
-}
-
-.user-card {
+.users-table-container {
+  overflow-x: auto;
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  padding: 20px;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+
+.users-table th,
+.users-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.users-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.users-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.users-table .user-id {
+  font-family: monospace;
+  font-size: 0.85rem;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.users-table .agents-count {
+  font-weight: bold;
+  text-align: center;
+}
+
+.users-table .actions-cell {
   display: flex;
-  flex-direction: column;
-  gap: 15px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .user-info h2 {
@@ -1053,11 +1091,12 @@ function closeAgentsModal() {
 }
 
 .agents-btn, .edit-btn, .delete-btn {
-  padding: 8px 15px;
+  padding: 6px 12px;
   border-radius: 4px;
   cursor: pointer;
   border: none;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .agents-btn {
