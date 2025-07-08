@@ -689,7 +689,9 @@ async function createUser() {
           console.log(`Attempting to assign user to organization (attempt ${retryCount + 1})...`)
           try {
             // Make a direct API call instead of using the wrapper to get more control
-            const apiUrl = `${import.meta.env.VITE_API_URL}/api/v1/user-orgs`
+            // Fix: Use proper environment variable access with fallback
+            const baseUrl = import.meta.env.VITE_API_URL || 'https://agentplatform-backend-service-748547744737.us-central1.run.app'
+            const apiUrl = `${baseUrl}/api/v1/user-orgs`
             console.log(`Making direct API call to ${apiUrl}`)
             
             // Get fresh auth token
