@@ -96,11 +96,18 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useToast } from 'vue-toast-notification'
+import 'vue-toast-notification/dist/theme-sugar.css'
 import vSelect from 'vue-select'
 import 'vue-select/dist/vue-select.css'
 import { agentsApi, organizationsApi } from '@/services/api'
 
 const toast = useToast()
+
+// Toast options
+const toastOptions = {
+  position: 'top-right',
+  duration: 3000
+}
 
 // State
 const agents = ref([])
@@ -129,7 +136,7 @@ async function loadAgents() {
     agents.value = response.data || []
   } catch (error) {
     console.error('Error loading agents:', error)
-    toast.error('Failed to load agents')
+    toast.error('Failed to load agents', toastOptions)
   } finally {
     loading.value = false
   }
@@ -142,7 +149,7 @@ async function loadOrganizations() {
     organizations.value = response.data || []
   } catch (error) {
     console.error('Error loading organizations:', error)
-    toast.error('Failed to load organizations')
+    toast.error('Failed to load organizations', toastOptions)
   } finally {
     loading.value = false
   }
@@ -178,7 +185,7 @@ async function loadAgentOrganization() {
     }
   } catch (error) {
     console.error('Error loading agent organization:', error)
-    toast.error('Failed to load agent organization')
+    toast.error('Failed to load agent organization', toastOptions)
   } finally {
     loading.value = false
   }
@@ -206,10 +213,10 @@ async function updateAgentOrganization() {
     currentOrgId.value = selectedOrgId.value
     currentOrg.value = organizations.value.find(o => o.id === selectedOrgId.value)
     
-    toast.success('Agent organization updated successfully')
+    toast.success('Agent organization updated successfully', toastOptions)
   } catch (error) {
     console.error('Error updating agent organization:', error)
-    toast.error('Failed to update agent organization')
+    toast.error('Failed to update agent organization', toastOptions)
   } finally {
     loading.value = false
   }

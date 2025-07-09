@@ -9,15 +9,15 @@
       <router-link to="/agents" class="navbar-item">Agents</router-link>
       <router-link to="/files" class="navbar-item">Files</router-link>
       <router-link to="/users" class="navbar-item">Users</router-link>
-      <div class="navbar-dropdown">
-        <button class="navbar-dropdown-toggle">
+      <div class="navbar-dropdown" @mouseenter="isDropdownOpen = true" @mouseleave="isDropdownOpen = false" v-click-outside="closeDropdown">
+        <button class="navbar-dropdown-toggle" @click="toggleDropdown">
           Assignments
-          <i class="mdi mdi-chevron-down"></i>
+          <i class="mdi" :class="isDropdownOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'"></i>
         </button>
-        <div class="navbar-dropdown-menu">
-          <router-link to="/assign/users-to-agents" class="dropdown-item">Users to Agents</router-link>
-          <router-link to="/assign/agents-to-orgs" class="dropdown-item">Agents to Orgs</router-link>
-          <router-link to="/assign/users-to-orgs" class="dropdown-item">Users to Orgs</router-link>
+        <div class="navbar-dropdown-menu" v-show="isDropdownOpen">
+          <router-link to="/assign/users-to-agents" class="dropdown-item" @click="closeDropdown">Users to Agents</router-link>
+          <router-link to="/assign/agents-to-orgs" class="dropdown-item" @click="closeDropdown">Agents to Orgs</router-link>
+          <router-link to="/assign/users-to-orgs" class="dropdown-item" @click="closeDropdown">Users to Orgs</router-link>
         </div>
       </div>
     </div>
@@ -49,6 +49,20 @@ const props = defineProps({
 const authStore = useAuthStore()
 const router = useRouter()
 const user = computed(() => authStore.user)
+const isDropdownOpen = ref(false)
+
+const toggleDropdown = () => {
+  isDropdownOpen.value = !isDropdownOpen.value
+}
+
+const closeDropdown = () => {
+  isDropdownOpen.value = false
+}
+
+// Close dropdown when route changes
+router.afterEach(() => {
+  closeDropdown()
+})
 // Organization selector code removed
 
 const logout = async () => {
