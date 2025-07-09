@@ -20,6 +20,7 @@
           </div>
           
           <div class="actions">
+            <router-link :to="`/agents/${agent.id}/files`" class="files-btn">Manage Files</router-link>
             <button @click="openEditModal()" class="edit-btn">Edit Agent</button>
             <button @click="confirmDelete(agent)" class="delete-btn">Delete Agent</button>
           </div>
@@ -28,10 +29,6 @@
       </div>
       
       <!-- Organization dropdowns removed as requested -->
-      
-      <div class="actions secondary-actions">
-        <router-link :to="`/agents/${agent.id}/files`" class="files-btn">Manage Files</router-link>
-      </div>
       
       <div class="agent-content">
         <div class="agent-info-card">
@@ -74,7 +71,6 @@
         <div class="agent-users-card">
           <div class="card-header">
             <h2>Users ({{ users.length }})</h2>
-            <button @click="openAddUserModal()" class="add-user-btn">Add User</button>
           </div>
           <div v-if="users.length === 0" class="empty-state">
             <p>No users have access to this agent.</p>
@@ -1002,7 +998,7 @@ const formatDate = (dateString) => {
   gap: 10px;
 }
 
-.files-btn, .edit-btn, .delete-btn, .users-btn {
+.edit-btn, .delete-btn, .users-btn, .files-btn {
   padding: 8px 15px;
   border-radius: 4px;
   cursor: pointer;
