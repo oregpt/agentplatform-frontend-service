@@ -721,7 +721,7 @@ async function createUser() {
     
     // Refresh user list and reset UI
     await fetchUsers()
-    resetForm()
+    resetFormData()
     showCreateModal.value = false
   } catch (err) {
     console.error('Error in user creation process:', err)
