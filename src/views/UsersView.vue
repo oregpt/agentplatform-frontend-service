@@ -222,6 +222,7 @@ import { ref, onMounted, computed, inject, watch } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '../store/auth'
 import { organizationsApi, usersApi, userAgentApi } from '../services/api'
+import { getFirebaseAuth } from '../services/firebase'
 import SearchBar from '../components/SearchBar.vue'
 import ContentCard from '../components/ContentCard.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
@@ -769,6 +770,16 @@ async function updateUser() {
 
 // Function to show delete confirmation modal
 function confirmDelete(user) {
+  // Check if a specific organization is selected (not 'All')
+  if (selectedOrgId.value === 'All') {
+    notify({
+      type: 'error',
+      message: 'Organization selection required',
+      details: 'User can only be removed from a specific organization. Please select an organization from the dropdown.'
+    })
+    return
+  }
+  
   selectedUser.value = user
   showDeleteModal.value = true
 }
@@ -776,8 +787,13 @@ function confirmDelete(user) {
 async function deleteUser() {
   try {
     loading.value = true
-    const userId = selectedUser.value.id
+    // Ensure we have a valid user ID (could be id or user_id depending on API response format)
+    const userId = selectedUser.value.id || selectedUser.value.user_id
     const orgId = selectedOrgId.value
+    
+    if (!userId) {
+      throw new Error('Invalid user ID')
+    }
     
     console.log('Removing user from organization:', userId, 'org:', orgId)
     
