@@ -9,6 +9,17 @@
       <router-link to="/agents" class="navbar-item">Agents</router-link>
       <router-link to="/files" class="navbar-item">Files</router-link>
       <router-link to="/users" class="navbar-item">Users</router-link>
+      <div class="navbar-dropdown">
+        <button class="navbar-dropdown-toggle">
+          Assignments
+          <i class="mdi mdi-chevron-down"></i>
+        </button>
+        <div class="navbar-dropdown-menu">
+          <router-link to="/assign/users-to-agents" class="dropdown-item">Users to Agents</router-link>
+          <router-link to="/assign/agents-to-orgs" class="dropdown-item">Agents to Orgs</router-link>
+          <router-link to="/assign/users-to-orgs" class="dropdown-item">Users to Orgs</router-link>
+        </div>
+      </div>
     </div>
     <!-- Organization selector removed from header -->
     <div class="navbar-end">
@@ -99,9 +110,104 @@ const logout = async () => {
 .navbar-item {
   color: white;
   text-decoration: none;
-  padding: 5px 10px;
+  padding: 0.5rem 1rem;
   border-radius: 4px;
-  transition: background-color 0.3s;
+  transition: background-color 0.2s;
+}
+
+.navbar-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.navbar-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.navbar-dropdown-toggle {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 4px;
+}
+
+.navbar-dropdown-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.navbar-dropdown-menu {
+  display: none;
+  position: absolute;
+  background-color: white;
+  min-width: 200px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  border-radius: 4px;
+  overflow: hidden;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+}
+
+.navbar-dropdown:hover .navbar-dropdown-menu {
+  display: block;
+}
+
+.dropdown-item {
+  color: #333;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+  display: block;
+  transition: background-color 0.2s;
+}
+
+.dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+.dropdown-item.router-link-active {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  font-weight: 500;
+}
+
+/* Add a small arrow to the active dropdown */
+.navbar-dropdown:hover .navbar-dropdown-toggle::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 0 8px 8px;
+  border-style: solid;
+  border-color: transparent transparent white transparent;
+  z-index: 1001;
+}
+
+/* Responsive adjustments */
+@media (max-width: 992px) {
+  .navbar-dropdown-menu {
+    position: static;
+    box-shadow: none;
+    border: 1px solid #eee;
+    margin-top: 0.5rem;
+    margin-left: 1rem;
+    display: none;
+  }
+  
+  .navbar-dropdown:hover .navbar-dropdown-menu {
+    display: block;
+  }
+  
+  .navbar-dropdown-toggle::after {
+    display: none;
+  }
 }
 
 .navbar-item:hover {

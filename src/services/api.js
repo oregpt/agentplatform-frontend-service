@@ -112,6 +112,24 @@ export const usersApi = {
   assignToOrganization: (data) => api.post('/user-orgs', data)
 }
 
+// User-Organization API
+export const userOrgApi = {
+  // Get all organizations for a user
+  getUserOrgs: (userId) => api.get(`/users/by-id/${userId}/organizations`),
+  
+  // Add a user to an organization
+  addUserToOrg: (userId, orgId, data = {}) => 
+    api.post(`/users/by-id/${userId}/organizations/${orgId}`, data),
+  
+  // Remove a user from an organization
+  removeUserFromOrg: (userId, orgId) => 
+    api.delete(`/users/by-id/${userId}/organizations/${orgId}`),
+  
+  // Update a user's role in an organization
+  updateUserOrgRole: (userId, orgId, data) => 
+    api.put(`/users/by-id/${userId}/organizations/${orgId}/role`, data)
+}
+
 // User-Agent API
 export const userAgentApi = {
   assignUserToAgent: (userId, agentId) => api.post('/users/assign', { userId, agentId }),

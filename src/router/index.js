@@ -13,6 +13,12 @@ import FilesListView from '../views/FilesListView.vue'
 import UsersView from '../views/UsersView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 
+// Assignment Views
+import AssignmentsIndex from '../views/assignments/AssignmentsIndex.vue'
+import UserAgentAssignments from '../views/assignments/UserAgentAssignments.vue'
+import AgentOrgAssignments from '../views/assignments/AgentOrgAssignments.vue'
+import UserOrgAssignments from '../views/assignments/UserOrgAssignments.vue'
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -82,6 +88,42 @@ const router = createRouter({
       component: UsersView,
       meta: {
         requiresAuth: true
+      }
+    },
+    {
+      path: '/assign',
+      name: 'assignments',
+      component: AssignmentsIndex,
+      meta: {
+        requiresAuth: true,
+        title: 'Assignments'
+      }
+    },
+    {
+      path: '/assign/users-to-agents',
+      name: 'user-agent-assignments',
+      component: UserAgentAssignments,
+      meta: {
+        requiresAuth: true,
+        title: 'Assign Users to Agents'
+      }
+    },
+    {
+      path: '/assign/agents-to-orgs',
+      name: 'agent-org-assignments',
+      component: AgentOrgAssignments,
+      meta: {
+        requiresAuth: true,
+        title: 'Assign Agents to Organizations'
+      }
+    },
+    {
+      path: '/assign/users-to-orgs',
+      name: 'user-org-assignments',
+      component: UserOrgAssignments,
+      meta: {
+        requiresAuth: true,
+        title: 'Assign Users to Organizations'
       }
     },
     {
