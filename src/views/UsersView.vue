@@ -817,8 +817,10 @@ async function deleteUser() {
     
     // Delete only the user-organization association
     const baseUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://agentplatform-backend-service-748547744737.us-central1.run.app'
-    // The backend expects just the user ID in the path parameter and gets the org ID from the auth token
-    const apiUrl = `${baseUrl}/api/v1/user-orgs/${userId}`
+    
+    // Include the organization ID explicitly in the URL as a query parameter
+    // This ensures the correct org ID is used even if the token doesn't have it
+    const apiUrl = `${baseUrl}/api/v1/user-orgs/${userId}?org_id=${orgId}`
     console.log('API URL for deletion:', apiUrl)
     
     // Get the auth token
