@@ -43,6 +43,10 @@ const user = computed(() => authStore.user)
 const logout = async () => {
   await authStore.logout()
   router.push('/login')
+  // Force a full page refresh to clear any cached data
+  setTimeout(() => {
+    window.location.reload()
+  }, 100) // Small delay to ensure router navigation starts
 }
 </script>
 

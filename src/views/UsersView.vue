@@ -38,8 +38,6 @@
             <th>Name</th>
             <th>Email</th>
             <th>ID</th>
-            <th>Address</th>
-            <th>Phone</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -48,11 +46,7 @@
             <td>{{ user.display_name || user.name }}</td>
             <td>{{ user.email }}</td>
             <td class="user-id">{{ user.user_id || user.id }}</td>
-            <td>{{ user.address || '-' }}</td>
-            <td>{{ user.phone || '-' }}</td>
             <td class="actions-cell">
-              <button @click="manageAgents(user)" class="agents-btn">Manage Agents</button>
-              <button @click="editUser(user)" class="edit-btn">Edit</button>
               <button @click="confirmDelete(user)" class="delete-btn">Remove</button>
             </td>
           </tr>
