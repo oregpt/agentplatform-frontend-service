@@ -40,7 +40,6 @@
             <th>ID</th>
             <th>Address</th>
             <th>Phone</th>
-            <th>Agents</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -51,7 +50,6 @@
             <td class="user-id">{{ user.user_id || user.id }}</td>
             <td>{{ user.address || '-' }}</td>
             <td>{{ user.phone || '-' }}</td>
-            <td class="agents-count">{{ user.agentsCount || 0 }}</td>
             <td class="actions-cell">
               <button @click="manageAgents(user)" class="agents-btn">Manage Agents</button>
               <button @click="editUser(user)" class="edit-btn">Edit</button>
@@ -404,36 +402,9 @@ async function fetchUsers() {
         usersList = response.data;
       }
       
-      // For each user, fetch agent counts
-      const usersWithCounts = await Promise.all(usersList.map(async (user) => {
-        try {
-          // Fetch agent assignments for this user
-          const agentsResponse = await userAgentApi.getUserAgents(user.id);
-          let agentsCount = 0;
-          
-          if (agentsResponse && agentsResponse.data) {
-            if (Array.isArray(agentsResponse.data.agents)) {
-              agentsCount = agentsResponse.data.agents.length;
-            } else if (Array.isArray(agentsResponse.data)) {
-              agentsCount = agentsResponse.data.length;
-            }
-          }
-          
-          return {
-            ...user,
-            agentsCount
-          };
-        } catch (err) {
-          console.error(`Error fetching agent counts for user ${user.id}:`, err);
-          return {
-            ...user,
-            agentsCount: 0
-          };
-        }
-      }));
-      
-      users.value = usersWithCounts;
-      console.log('Users loaded with counts:', users.value);
+      // Assign users directly without fetching agent counts
+      users.value = usersList;
+      console.log('Users loaded:', users.value);
     } else {
       console.error('Unexpected API response format:', response)
       error.value = 'Unexpected API response format'
