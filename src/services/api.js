@@ -139,7 +139,7 @@ export const userAgentApi = {
    */
   assignUserToAgent: (userId, agentId) => {
     console.log(`Assigning user ${userId} to agent ${agentId}`);
-    return api.post('/user-orgs/assign', { userId, agentId });
+    return api.post('/user-orgs/assign', { UserID: userId, AgentID: agentId });
   },
   
   /**
