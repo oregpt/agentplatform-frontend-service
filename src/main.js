@@ -47,8 +47,5 @@ console.log('Auth state initialization started')
 // Use Vue Router
 app.use(router)
 
-// Use notification plugin
-app.use(notificationPlugin)
-
 // Mount the app
 app.mount('#app')
