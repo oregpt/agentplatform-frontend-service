@@ -778,11 +778,23 @@ async function updateUser() {
 function confirmDelete(user) {
   // Check if a specific organization is selected (not 'All')
   if (selectedOrgId.value === 'All') {
-    notify({
-      type: 'error',
-      message: 'Organization selection required',
-      details: 'User can only be removed from a specific organization. Please select an organization from the dropdown.'
-    })
+    try {
+      // Try to use the notify function if available
+      if (typeof notify === 'function') {
+        notify({
+          type: 'error',
+          message: 'Organization selection required',
+          details: 'User can only be removed from a specific organization. Please select an organization from the dropdown.'
+        })
+      } else {
+        // Fallback to console error
+        console.error('Organization selection required: User can only be removed from a specific organization')
+        alert('Please select a specific organization first')
+      }
+    } catch (error) {
+      console.error('Error showing notification:', error)
+      alert('Please select a specific organization first')
+    }
     return
   }
   
@@ -804,7 +816,9 @@ async function deleteUser() {
     console.log('Removing user from organization:', userId, 'org:', orgId)
     
     // Delete only the user-organization association
-    const apiUrl = `${import.meta.env.VITE_BACKEND_API_URL}/api/v1/user-orgs/${userId}/${orgId}`
+    const baseUrl = import.meta.env.VITE_BACKEND_API_URL || 'https://agentplatform-backend-service-748547744737.us-central1.run.app'
+    const apiUrl = `${baseUrl}/api/v1/user-orgs/${userId}/${orgId}`
+    console.log('API URL for deletion:', apiUrl)
     
     // Get the auth token
     const auth = getFirebaseAuth()
@@ -818,11 +832,23 @@ async function deleteUser() {
       }
     })
     
-    notify({
-      type: 'success',
-      message: 'User removed from organization',
-      details: 'The user has been removed from this organization.'
-    })
+    try {
+      // Try to use the notify function if available
+      if (typeof notify === 'function') {
+        notify({
+          type: 'success',
+          message: 'User removed from organization',
+          details: 'The user has been removed from this organization.'
+        })
+      } else {
+        // Fallback to alert
+        console.log('User removed from organization successfully')
+        alert('User removed from organization successfully')
+      }
+    } catch (notifyError) {
+      console.error('Error showing success notification:', notifyError)
+      alert('User removed from organization successfully')
+    }
     
     showDeleteModal.value = false
     // Refresh the users list
@@ -830,11 +856,23 @@ async function deleteUser() {
   } catch (err) {
     console.error('Error removing user from organization:', err)
     
-    notify({
-      type: 'error',
-      message: 'Failed to remove user from organization',
-      details: err.message || 'An unknown error occurred'
-    })
+    try {
+      // Try to use the notify function if available
+      if (typeof notify === 'function') {
+        notify({
+          type: 'error',
+          message: 'Failed to remove user from organization',
+          details: err.message || 'An unknown error occurred'
+        })
+      } else {
+        // Fallback to alert
+        console.error('Failed to remove user from organization:', err.message || 'An unknown error occurred')
+        alert('Failed to remove user from organization: ' + (err.message || 'An unknown error occurred'))
+      }
+    } catch (notifyError) {
+      console.error('Error showing error notification:', notifyError)
+      alert('Failed to remove user from organization')
+    }
   } finally {
     loading.value = false
   }
