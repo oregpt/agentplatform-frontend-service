@@ -6,26 +6,16 @@
     <main>
       <router-view />
     </main>
-    <notification-container ref="notificationsRef" position="top-right" />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, inject } from 'vue'
+import { computed } from 'vue'
 import { useAuthStore } from './store/auth'
 import NavBar from './components/NavBar.vue'
 
 const authStore = useAuthStore()
 const isAuthenticated = computed(() => authStore.isAuthenticated)
-
-// Get notification system reference
-const notify = inject('notify')
-const notificationsRef = computed(() => notify.containerRef)
-
-// Set the notification container reference when the component is mounted
-onMounted(() => {
-  notify.containerRef.value = notificationsRef.value
-})
 </script>
 
 <style>
