@@ -212,15 +212,19 @@ async function loadAssignedAgents() {
 async function loadAvailableAgents() {
   try {
     loading.value = true
-    // Get all agents available to the current user
-    const response = await userAgentApi.getUserAgents(authStore.user.uid)
-    const userAgents = Array.isArray(response.data) ? response.data : []
+    error.value = ''
     
-    // Get assigned agent IDs to exclude
+    // Get all agents the current user has access to
+    const response = await agentsApi.getAll()
+    const allAgents = Array.isArray(response.data) ? response.data : 
+                    (Array.isArray(response.data?.agents) ? response.data.agents : [])
+    
+    // Get the list of agents already assigned to the organization
     const assignedAgentIds = new Set(assignedAgents.value.map(a => a.id))
     
-    // Filter out agents already assigned to the org
-    availableAgents.value = userAgents.filter(agent => !assignedAgentIds.has(agent.id))
+    // Filter out agents that are already assigned to the organization
+    availableAgents.value = allAgents.filter(agent => !assignedAgentIds.has(agent.id))
+    
   } catch (error) {
     console.error('Error loading available agents:', error)
     error.value = 'Failed to load available agents'
@@ -233,7 +237,12 @@ async function loadAvailableAgents() {
 function onOrgChange() {
   if (selectedOrgId.value) {
     changesMade.value = false
+    error.value = ''
+    loading.value = true
     Promise.all([loadAssignedAgents(), loadAvailableAgents()])
+      .finally(() => {
+        loading.value = false
+      })
   } else {
     assignedAgents.value = []
     availableAgents.value = []
@@ -279,6 +288,7 @@ async function saveAssignments() {
   
   try {
     loading.value = true
+    error.value = ''
     // Get the current user's ID
     const userId = authStore.user.uid
     

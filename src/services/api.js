@@ -132,15 +132,47 @@ export const userOrgApi = {
 
 // User-Agent API
 export const userAgentApi = {
-  assignUserToAgent: (userId, agentId) => api.post('/users/assign', { userId, agentId }),
-  removeUserFromAgent: (userId, agentId) => api.delete(`/users/by-id/${userId}/agents/${agentId}`),
-  getUserAgents: (userId) => api.get(`/users/by-id/${userId}/agents`),
+  /**
+   * Assign a user to an agent (creates a user-agent association)
+   * @param {string} userId - The ID of the user
+   * @param {string} agentId - The ID of the agent
+   */
+  assignUserToAgent: (userId, agentId) => {
+    console.log(`Assigning user ${userId} to agent ${agentId}`);
+    return api.post('/user-orgs/assign', { userId, agentId });
+  },
+  
+  /**
+   * Remove a user from an agent (only removes the user-agent association)
+   * @param {string} userId - The ID of the user
+   * @param {string} agentId - The ID of the agent
+   */
+  removeUserFromAgent: (userId, agentId) => {
+    console.log(`Removing user ${userId} from agent ${agentId}`);
+    return api.delete(`/user-orgs/by-id/${userId}/agents/${agentId}`);
+  },
+  
+  /**
+   * Get all agents assigned to a specific user
+   * @param {string} userId - The ID of the user
+   */
+  getUserAgents: (userId) => {
+    console.log(`Getting agents for user: ${userId}`)
+    return api.get(`/users/agents?userId=${userId}`)
+  },
+  
+  /**
+   * Get all users assigned to a specific agent (with optional organization filter)
+   * @param {string} agentId - The ID of the agent
+   * @param {string} [organizationId] - Optional organization ID to filter by
+   */
   getUsersForAgent: (agentId, organizationId) => {
-    const params = {};
+    const params = { agentId }
     if (organizationId) {
-      params.organization_id = organizationId;
+      params.organizationId = organizationId
     }
-    return api.get(`/agents/${agentId}/users`, { params });
+    console.log(`Getting users for agent: ${agentId}`, { params })
+    return api.get('/agents/users', { params })
   }
 }
 
