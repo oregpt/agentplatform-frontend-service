@@ -665,6 +665,21 @@ async function createUser() {
         
         console.log('UserOrgs creation API response:', response)
         console.log('User successfully assigned to organization')
+        
+        // Force close the modal and show success notification immediately
+        // This ensures the modal closes even if there's an error later
+        try {
+          showCreateModal.value = false
+          notify({
+            type: 'success',
+            message: 'User created successfully',
+            details: 'User has been created and assigned to the organization.'
+          })
+        } catch (notifyError) {
+          console.error('Error showing notification or closing modal:', notifyError)
+          // Force close modal as a fallback
+          showCreateModal.value = false
+        }
       } catch (error) {
         console.error('Error assigning user to organization:', error)
         console.error('Response data:', error.response?.data)
@@ -673,12 +688,9 @@ async function createUser() {
         throw error
       }
       
-      // Success notification
-      notify({
-        type: 'success',
-        message: 'User created successfully',
-        details: 'User has been created and assigned to the organization.'
-      })
+      // Success notification already shown in the API call
+      // Just ensure we refresh the user list
+      await fetchUsers()
     } catch (orgErr) {
       console.error('Error assigning user to organization:', orgErr)
       
@@ -689,12 +701,12 @@ async function createUser() {
         details: 'The user was created successfully but could not be assigned to the organization. ' +
                  'You may need to manually assign them later.'
       })
+      
+      // Still close the modal and refresh since the user was created successfully
+      showCreateModal.value = false
+      resetFormData()
+      await fetchUsers()
     }
-    
-    // Refresh user list and reset UI
-    await fetchUsers()
-    resetFormData()
-    showCreateModal.value = false
   } catch (err) {
     console.error('Error in user creation process:', err)
     notify({
