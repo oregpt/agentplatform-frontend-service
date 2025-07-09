@@ -220,13 +220,16 @@ const uploadError = ref('')
 
 // Filter agents based on search query
 const filteredAgents = computed(() => {
-  if (!searchQuery.value) return agents.value
+  // Ensure agents.value is always an array before filtering
+  const agentsList = Array.isArray(agents.value) ? agents.value : [];
+  
+  if (!searchQuery.value) return agentsList;
   
   const query = searchQuery.value.toLowerCase()
-  return agents.value.filter(agent => 
-    agent.name.toLowerCase().includes(query) || 
+  return agentsList.filter(agent => 
+    (agent.name && agent.name.toLowerCase().includes(query)) || 
     (agent.description && agent.description.toLowerCase().includes(query)) ||
-    agent.id.toLowerCase().includes(query)
+    (agent.id && agent.id.toLowerCase().includes(query))
   )
 })
 

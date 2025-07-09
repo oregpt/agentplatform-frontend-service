@@ -140,10 +140,21 @@ async function loadOrganizations() {
   try {
     loading.value = true
     const response = await organizationsApi.getAll()
-    organizations.value = response.data || []
+    // Ensure we have an array and properly format it for v-select
+    const orgsData = response.data?.organizations || response.data || []
+    organizations.value = Array.isArray(orgsData) 
+      ? orgsData.map(org => ({
+          ...org,
+          // Ensure required properties exist for v-select
+          name: org.name || `Organization ${org.id}`,
+          label: org.name || `Organization ${org.id}`,
+          value: org.id
+        }))
+      : []
   } catch (error) {
     console.error('Error loading organizations:', error)
     toast.error('Failed to load organizations')
+    organizations.value = [] // Ensure it's always an array
   } finally {
     loading.value = false
   }
