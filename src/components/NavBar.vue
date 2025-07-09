@@ -110,13 +110,6 @@ const logout = async () => {
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.navbar-item:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
 .navbar-end {
   display: flex;
   align-items: center;
