@@ -53,7 +53,7 @@
             <td class="actions-cell">
               <button @click="manageAgents(user)" class="agents-btn">Manage Agents</button>
               <button @click="editUser(user)" class="edit-btn">Edit</button>
-              <button @click="confirmDelete(user)" class="delete-btn">Delete</button>
+              <button @click="confirmDelete(user)" class="delete-btn">Remove</button>
             </td>
           </tr>
         </tbody>
@@ -205,10 +205,10 @@
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
       v-model="showDeleteModal"
-      title="Delete User"
-      :message="`Are you sure you want to delete ${selectedUser.display_name || selectedUser.name}?`"
-      details="This action cannot be undone. The user will be removed from Firebase Authentication, the Users table, and all organization assignments will be deleted."
-      confirm-text="Delete"
+      title="Remove User from Organization"
+      :message="`Are you sure you want to remove ${selectedUser.display_name || selectedUser.name} from this organization?`"
+      details="This action will only remove the user from the current organization. The user account will remain active and can be added back later."
+      confirm-text="Remove"
       cancel-text="Cancel"
       confirm-type="danger"
       icon="delete"
@@ -767,46 +767,50 @@ async function updateUser() {
   }
 }
 
+// Function to show delete confirmation modal
+function confirmDelete(user) {
+  selectedUser.value = user
+  showDeleteModal.value = true
+}
+
 async function deleteUser() {
   try {
     loading.value = true
     const userId = selectedUser.value.id
-    console.log('Starting user deletion process for user ID:', userId)
+    const orgId = selectedOrgId.value
     
-    // 1. Delete user from UserOrgs table first (handled by backend cascade)
-    console.log('Deleting user from database...')
-    await usersApi.delete(userId)
+    console.log('Removing user from organization:', userId, 'org:', orgId)
     
-    // 2. Attempt to delete from Firebase if applicable
-    // Note: This will only work if the current user is deleting their own account
-    // or if we're in an admin context. In practice, this would typically be handled
-    // by the backend with Firebase Admin SDK.
-    try {
-      console.log('Attempting to delete user from Firebase...')
-      const { deleteFirebaseUser } = await import('../services/firebase')
-      await deleteFirebaseUser(userId)
-      console.log('Firebase user deletion successful')
-    } catch (firebaseError) {
-      console.warn('Firebase user deletion handled by backend:', firebaseError.message)
-      // We don't want to fail the whole operation if Firebase deletion fails
-      // as this is likely handled by the backend
-    }
+    // Delete only the user-organization association
+    const apiUrl = `${import.meta.env.VITE_BACKEND_API_URL}/api/v1/user-orgs/${userId}/${orgId}`
+    
+    // Get the auth token
+    const auth = getFirebaseAuth()
+    const idToken = await auth.currentUser?.getIdToken(true)
+    
+    // Make the API call to delete the user-org association
+    await axios.delete(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${idToken}`,
+        'Content-Type': 'application/json'
+      }
+    })
     
     notify({
       type: 'success',
-      message: 'User deleted successfully',
-      details: 'User has been removed from the system.'
+      message: 'User removed from organization',
+      details: 'The user has been removed from this organization.'
     })
     
     showDeleteModal.value = false
     // Refresh the users list
     await fetchUsers()
   } catch (err) {
-    console.error('Error deleting user:', err)
+    console.error('Error removing user from organization:', err)
     
     notify({
       type: 'error',
-      message: 'Failed to delete user',
+      message: 'Failed to remove user from organization',
       details: err.message || 'An unknown error occurred'
     })
   } finally {
