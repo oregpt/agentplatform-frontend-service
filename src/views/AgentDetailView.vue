@@ -68,6 +68,30 @@
           <pre class="metadata-json">{{ prettyMetadata }}</pre>
         </div>
         
+        <div class="agent-organizations-card">
+          <div class="card-header">
+            <h2>Organizations ({{ organizations.length }})</h2>
+          </div>
+          <div v-if="organizations.length === 0" class="empty-state">
+            <p>No organizations are associated with this agent.</p>
+          </div>
+          <ul v-else class="organizations-list">
+            <li v-for="org in organizations" :key="org.id" class="organization-item">
+              <div class="organization-info">
+                <div class="organization-name">{{ org.name || 'Unnamed Organization' }}</div>
+                <div class="organization-details">
+                  <span class="detail-label">ID:</span>
+                  <span class="organization-id">{{ org.id }}</span>
+                </div>
+                <div class="organization-details" v-if="org.description">
+                  <span class="detail-label">Description:</span>
+                  <span class="organization-description">{{ org.description }}</span>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+        
         <div class="agent-users-card">
           <div class="card-header">
             <h2>Users ({{ users.length }})</h2>
@@ -88,9 +112,6 @@
                   <span class="user-org">{{ user.organization_name }}</span>
                 </div>
               </div>
-              <button @click="removeUser(user)" class="remove-user-btn">
-                <i class="fas fa-x"></i>
-              </button>
             </li>
           </ul>
         </div>
@@ -286,7 +307,7 @@ async function fetchAgentData() {
     console.log('Raw agent data from API:', JSON.stringify(agentResponse.data, null, 2))
     agent.value = agentResponse.data
     
-    // Fetch organizations for reference only (not for dropdown)
+    // Fetch organizations for reference
     try {
       const orgsResponse = await organizationsApi.getAll()
       
@@ -304,8 +325,11 @@ async function fetchAgentData() {
       organizations.value = []
     }
     
-    // Fetch users assigned to this agent across all accessible organizations
-    await fetchAssignedUsers()
+    // Fetch users and organizations assigned to this agent
+    await Promise.all([
+      fetchAssignedUsers(),
+      fetchAgentOrganizations()
+    ])
 
     // Fetch files for this agent
     try {
@@ -319,6 +343,38 @@ async function fetchAgentData() {
     console.error('Error fetching agent details:', error)
   } finally {
     loading.value = false
+  }
+}
+
+async function fetchAgentOrganizations() {
+  try {
+    // First, get all user-agent mappings for this agent
+    const userAgentsResponse = await userAgentApi.getUserAgentsByAgent(agentId.value)
+    const userAgentMappings = userAgentsResponse.data || []
+    
+    // Extract unique organization IDs
+    const orgIds = [...new Set(userAgentMappings
+      .map(ua => ua.organization_id)
+      .filter(Boolean))]
+    
+    if (orgIds.length === 0) {
+      organizations.value = []
+      return
+    }
+    
+    // Fetch organization details for each unique org ID
+    const orgPromises = orgIds.map(orgId => 
+      organizationsApi.getById(orgId)
+        .then(res => res.data)
+        .catch(() => null) // Skip any orgs that fail to load
+    )
+    
+    const orgs = await Promise.all(orgPromises)
+    organizations.value = orgs.filter(Boolean) // Remove any null entries
+    
+  } catch (error) {
+    console.error('Error fetching agent organizations:', error)
+    organizations.value = []
   }
 }
 
@@ -1051,11 +1107,58 @@ const formatDate = (dateString) => {
   gap: 20px;
 }
 
-.agent-info-card, .agent-stats-card, .agent-metadata-card, .agent-users-card {
+.agent-info-card, .agent-stats-card, .agent-metadata-card, .agent-organizations-card, .agent-users-card {
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: 20px;
+  margin-bottom: 20px;
+}
+
+.organizations-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.organization-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.organization-item:last-child {
+  border-bottom: none;
+}
+
+.organization-info {
+  flex: 1;
+}
+
+.organization-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #333;
+}
+
+.organization-details {
+  display: flex;
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 4px;
+}
+
+.organization-details .detail-label {
+  font-weight: 500;
+  margin-right: 6px;
+  color: #777;
+  min-width: 80px;
+}
+
+.agent-users-card {
+  grid-column: 1 / -1;
 }
 
 .info-row {
