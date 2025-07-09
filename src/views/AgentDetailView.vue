@@ -626,24 +626,69 @@ async function updateAgent() {
 }
 
 async function openAddUserModal() {
-  // Get the organizations for adding users
-  if (organizations.value.length === 0) {
-    alert('You need access to at least one organization to add users');
-    return;
-  }
-  
   showAddUserModal.value = true;
   loadingAvailableUsers.value = true;
   availableUsers.value = [];
   
   try {
-    // Fetch users from all organizations the current user has access to
+    // First, get the organizations associated with this agent
+    const agentOrgs = new Set();
+    
+    // Extract organization IDs from the current agent's users
+    users.value.forEach(user => {
+      if (user.organization_id) {
+        agentOrgs.add(user.organization_id);
+      }
+    });
+    
+    // If no organizations are found, try to get them from the agent's metadata or other properties
+    if (agentOrgs.size === 0 && agent.value.organization_id) {
+      agentOrgs.add(agent.value.organization_id);
+    }
+    
+    // If still no organizations, get them from the user-agent mappings
+    if (agentOrgs.size === 0) {
+      try {
+        const response = await userAgentApi.getUsersForAgent(agentId.value);
+        if (response && response.data) {
+          const mappings = Array.isArray(response.data) ? response.data : [response.data];
+          mappings.forEach(mapping => {
+            if (mapping.organization_id) {
+              agentOrgs.add(mapping.organization_id);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching agent-user mappings:', error);
+      }
+    }
+    
+    console.log('Organizations associated with this agent:', Array.from(agentOrgs));
+    
+    // If still no organizations found, use all available organizations as fallback
+    if (agentOrgs.size === 0 && organizations.value.length > 0) {
+      console.log('No specific organizations found for this agent. Using all available organizations.');
+      organizations.value.forEach(org => {
+        agentOrgs.add(org.id);
+      });
+    }
+    
+    if (agentOrgs.size === 0) {
+      alert('No organizations found for this agent. Cannot add users.');
+      loadingAvailableUsers.value = false;
+      return;
+    }
+    
+    // Fetch users from the agent's organizations
     const allAvailableUsers = [];
     
-    for (const org of organizations.value) {
+    for (const orgId of agentOrgs) {
       try {
-        const orgUsers = await usersApi.getAll(org.id);
-        console.log(`Add user modal - Response for org ${org.id}:`, orgUsers);
+        // Find the organization name from our organizations list
+        const org = organizations.value.find(o => o.id === orgId) || { id: orgId, name: 'Unknown Organization' };
+        
+        const orgUsers = await usersApi.getAll(orgId);
+        console.log(`Add user modal - Response for org ${orgId}:`, orgUsers);
         
         // Handle different response structures
         if (orgUsers && orgUsers.data) {
@@ -651,11 +696,11 @@ async function openAddUserModal() {
           
           // If it's an array, process each user
           if (Array.isArray(orgUsers.data)) {
-            console.log(`Found ${orgUsers.data.length} users in organization ${org.id}`);
+            console.log(`Found ${orgUsers.data.length} users in organization ${orgId}`);
             
             usersToAdd = orgUsers.data.map(user => ({
               ...user,
-              organization_id: org.id,
+              organization_id: orgId,
               organization_name: org.name
             }));
           } 
@@ -666,17 +711,17 @@ async function openAddUserModal() {
             if (userId) {
               usersToAdd = [{
                 ...user,
-                organization_id: org.id,
+                organization_id: orgId,
                 organization_name: org.name
               }];
-              console.log(`Added single user ${userId} from organization ${org.id}`);
+              console.log(`Added single user ${userId} from organization ${orgId}`);
             }
           }
           
           allAvailableUsers.push(...usersToAdd);
         }
       } catch (orgError) {
-        console.error(`Error fetching users for organization ${org.id}:`, orgError);
+        console.error(`Error fetching users for organization ${orgId}:`, orgError);
       }
     }
     
