@@ -2,6 +2,9 @@
   <div class="files-container">
     <div class="header">
       <div class="title-section">
+        <button @click="goBack" class="back-button">
+          <i class="mdi mdi-arrow-left"></i> Back to Agent
+        </button>
         <h1>Files</h1>
         <span v-if="agent" class="agent-name">for {{ agent.name }}</span>
       </div>
@@ -128,9 +131,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { filesApi, agentsApi } from '../services/api'
 
+const router = useRouter()
 const route = useRoute()
 const agentId = ref('')
 const agent = ref(null)
@@ -144,6 +148,15 @@ const isDragging = ref(false)
 const uploading = ref(false)
 const uploadProgress = ref(0)
 const fileInput = ref(null)
+
+const goBack = () => {
+  const agentId = route.params.agentId
+  if (agentId) {
+    router.push(`/agents/${agentId}`)
+  } else {
+    router.push('/agents')
+  }
+}
 
 onMounted(async () => {
   agentId.value = route.params.agentId
@@ -413,7 +426,33 @@ async function deleteFile() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #333;
+  margin-bottom: 1rem;
+  transition: all 0.2s ease;
+}
+
+.back-button:hover {
+  background: #e9e9e9;
+  border-color: #ccc;
+}
+
+.back-button i {
+  font-size: 1.1em;
 }
 
 .title-section {

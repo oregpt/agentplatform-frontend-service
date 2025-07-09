@@ -32,7 +32,9 @@
       
       <div class="agent-content">
         <div class="agent-info-card">
-          <h2>Agent Information</h2>
+          <div class="card-header">
+            <h2>Agent Information</h2>
+          </div>
           <div class="info-row">
             <span class="label">Agent Name:</span>
             <span class="value">{{ agent.name }}</span>
@@ -348,32 +350,62 @@ async function fetchAgentData() {
 
 async function fetchAgentOrganizations() {
   try {
-    // First, get all user-agent mappings for this agent
-    const userAgentsResponse = await userAgentApi.getUserAgentsByAgent(agentId.value)
-    const userAgentMappings = userAgentsResponse.data || []
-    
-    // Extract unique organization IDs
-    const orgIds = [...new Set(userAgentMappings
-      .map(ua => ua.organization_id)
-      .filter(Boolean))]
-    
-    if (orgIds.length === 0) {
-      organizations.value = []
-      return
+    // First, check if agent has an organization_id directly
+    if (agent.value.organization_id) {
+      try {
+        const orgResponse = await organizationsApi.getById(agent.value.organization_id)
+        if (orgResponse.data) {
+          organizations.value = [orgResponse.data]
+          return
+        }
+      } catch (error) {
+        console.error('Error fetching agent organization:', error)
+      }
     }
     
-    // Fetch organization details for each unique org ID
-    const orgPromises = orgIds.map(orgId => 
-      organizationsApi.getById(orgId)
-        .then(res => res.data)
-        .catch(() => null) // Skip any orgs that fail to load
-    )
+    // If no direct organization_id, try to get organizations from user-agent mappings
+    try {
+      const response = await userAgentApi.getUsersForAgent(agentId.value)
+      const userAgentMappings = Array.isArray(response.data) ? response.data : []
+      
+      // Extract unique organization IDs
+      const orgIds = [...new Set(userAgentMappings
+        .map(ua => ua.organization_id)
+        .filter(Boolean))]
+      
+      if (orgIds.length === 0) {
+        console.log('No organizations found in user-agent mappings')
+        return
+      }
+      
+      // Fetch organization details for each unique org ID
+      const orgPromises = orgIds.map(orgId => 
+        organizationsApi.getById(orgId)
+          .then(res => res.data)
+          .catch(() => null) // Skip any orgs that fail to load
+      )
+      
+      const orgs = await Promise.all(orgPromises)
+      organizations.value = orgs.filter(Boolean) // Remove any null entries
+      
+    } catch (error) {
+      console.error('Error fetching agent organizations from user-agent mappings:', error)
+    }
     
-    const orgs = await Promise.all(orgPromises)
-    organizations.value = orgs.filter(Boolean) // Remove any null entries
+    // If still no organizations, use the agent's direct organization if available
+    if (organizations.value.length === 0 && agent.value.organization_id) {
+      try {
+        const orgResponse = await organizationsApi.getById(agent.value.organization_id)
+        if (orgResponse.data) {
+          organizations.value = [orgResponse.data]
+        }
+      } catch (error) {
+        console.error('Error fetching direct agent organization:', error)
+      }
+    }
     
   } catch (error) {
-    console.error('Error fetching agent organizations:', error)
+    console.error('Error in fetchAgentOrganizations:', error)
     organizations.value = []
   }
 }
@@ -1103,8 +1135,15 @@ const formatDate = (dateString) => {
 
 .agent-content {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .agent-content {
+    grid-template-columns: 1fr;
+  }
 }
 
 .agent-info-card, .agent-stats-card, .agent-metadata-card, .agent-organizations-card, .agent-users-card {
@@ -1113,6 +1152,22 @@ const formatDate = (dateString) => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: 20px;
   margin-bottom: 20px;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-header {
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #333;
 }
 
 .organizations-list {
