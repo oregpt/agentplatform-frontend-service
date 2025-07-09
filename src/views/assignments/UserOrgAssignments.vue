@@ -125,20 +125,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useToast } from 'vue-toast-notification'
-import 'vue-toast-notification/dist/theme-sugar.css'
+import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue'
 import vSelect from 'vue-select'
 import 'vue-select/dist/vue-select.css'
 import { usersApi, organizationsApi, userOrgApi } from '@/services/api'
 
-const toast = useToast()
-
-// Toast options
-const toastOptions = {
-  position: 'top-right',
-  duration: 3000
-}
+// Get the global toast instance
+const { proxy } = getCurrentInstance()
+const toast = proxy.$toast
 
 // State
 const users = ref([])
@@ -178,7 +172,7 @@ async function loadUsers() {
     users.value = response.data || []
   } catch (error) {
     console.error('Error loading users:', error)
-    toast.error('Failed to load users', toastOptions)
+    toast.error('Failed to load users')
   } finally {
     loading.value = false
   }
@@ -191,7 +185,7 @@ async function loadOrganizations() {
     organizations.value = response.data || []
   } catch (error) {
     console.error('Error loading organizations:', error)
-    toast.error('Failed to load organizations', toastOptions)
+    toast.error('Failed to load organizations')
   } finally {
     loading.value = false
   }
@@ -209,7 +203,7 @@ async function loadUserOrganizations() {
     assignedOrgs.value = response.data || []
   } catch (error) {
     console.error('Error loading user organizations:', error)
-    toast.error('Failed to load user organizations', toastOptions)
+    toast.error('Failed to load user organizations')
   } finally {
     loading.value = false
   }
@@ -242,10 +236,10 @@ async function addSelectedOrg() {
     
     await loadUserOrganizations()
     selectedAvailableOrg.value = null
-    toast.success('User added to organization successfully', toastOptions)
+    toast.success('User added to organization successfully')
   } catch (error) {
     console.error('Error adding user to organization:', error)
-    toast.error('Failed to add user to organization', toastOptions)
+    toast.error('Failed to add user to organization')
   } finally {
     loading.value = false
   }
@@ -260,10 +254,10 @@ async function removeSelectedOrg() {
     
     await loadUserOrganizations()
     selectedAssignedOrg.value = null
-    toast.success('User removed from organization successfully', toastOptions)
+    toast.success('User removed from organization successfully')
   } catch (error) {
     console.error('Error removing user from organization:', error)
-    toast.error('Failed to remove user from organization', toastOptions)
+    toast.error('Failed to remove user from organization')
   } finally {
     loading.value = false
   }

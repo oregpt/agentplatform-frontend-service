@@ -94,20 +94,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useToast } from 'vue-toast-notification'
-import 'vue-toast-notification/dist/theme-sugar.css'
+import { ref, computed, onMounted, getCurrentInstance } from 'vue'
 import vSelect from 'vue-select'
 import 'vue-select/dist/vue-select.css'
 import { agentsApi, organizationsApi } from '@/services/api'
 
-const toast = useToast()
-
-// Toast options
-const toastOptions = {
-  position: 'top-right',
-  duration: 3000
-}
+// Get the global toast instance
+const { proxy } = getCurrentInstance()
+const toast = proxy.$toast
 
 // State
 const agents = ref([])
@@ -136,7 +130,7 @@ async function loadAgents() {
     agents.value = response.data || []
   } catch (error) {
     console.error('Error loading agents:', error)
-    toast.error('Failed to load agents', toastOptions)
+    toast.error('Failed to load agents')
   } finally {
     loading.value = false
   }
@@ -149,7 +143,7 @@ async function loadOrganizations() {
     organizations.value = response.data || []
   } catch (error) {
     console.error('Error loading organizations:', error)
-    toast.error('Failed to load organizations', toastOptions)
+    toast.error('Failed to load organizations')
   } finally {
     loading.value = false
   }
@@ -185,7 +179,7 @@ async function loadAgentOrganization() {
     }
   } catch (error) {
     console.error('Error loading agent organization:', error)
-    toast.error('Failed to load agent organization', toastOptions)
+    toast.error('Failed to load agent organization')
   } finally {
     loading.value = false
   }
@@ -213,10 +207,10 @@ async function updateAgentOrganization() {
     currentOrgId.value = selectedOrgId.value
     currentOrg.value = organizations.value.find(o => o.id === selectedOrgId.value)
     
-    toast.success('Agent organization updated successfully', toastOptions)
+    toast.success('Agent organization updated successfully')
   } catch (error) {
     console.error('Error updating agent organization:', error)
-    toast.error('Failed to update agent organization', toastOptions)
+    toast.error('Failed to update agent organization')
   } finally {
     loading.value = false
   }

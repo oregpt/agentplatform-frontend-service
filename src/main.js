@@ -3,7 +3,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import { initializeFirebase } from './services/firebase'
-import Toast from 'vue-toast-notification';
+import ToastPlugin from 'vue-toast-notification';
 import 'vue-toast-notification/dist/theme-sugar.css';
 
 // Import global CSS
@@ -29,10 +29,14 @@ const app = createApp(App)
 app.use(createPinia())
 
 // Use Toast Notification
-app.use(Toast, {
+const toastOptions = {
   position: 'top-right',
   duration: 3000
-})
+}
+app.use(ToastPlugin, toastOptions)
+
+// Provide toast instance globally
+app.config.globalProperties.$toast = app._context.config.globalProperties.$toast
 
 // Register directives
 app.directive('click-outside', clickOutside)

@@ -97,13 +97,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useToast } from 'vue-toast-notification'
+import { ref, computed, onMounted, getCurrentInstance } from 'vue'
 import { useAuthStore } from '@/store/auth'
 import { usersApi, agentsApi, userAgentApi } from '@/services/api'
-import 'vue-toast-notification/dist/theme-sugar.css'
 
-const toast = useToast()
+// Get the global toast instance
+const { proxy } = getCurrentInstance()
+const toast = proxy.$toast
 
 // State
 const users = ref([])
@@ -142,7 +142,7 @@ async function loadUsers() {
     users.value = response.data || []
   } catch (error) {
     console.error('Error loading users:', error)
-    toast.error('Failed to load users', toastOptions)
+    toast.error('Failed to load users')
   } finally {
     loading.value = false
   }
@@ -155,7 +155,7 @@ async function loadAvailableAgents() {
     availableAgents.value = response.data || []
   } catch (error) {
     console.error('Error loading agents:', error)
-    toast.error('Failed to load available agents', toastOptions)
+    toast.error('Failed to load available agents')
   } finally {
     loading.value = false
   }
@@ -173,7 +173,7 @@ async function loadUserAssignments() {
     assignedAgents.value = response.data || []
   } catch (error) {
     console.error('Error loading user assignments:', error)
-    toast.error('Failed to load user assignments', toastOptions)
+    toast.error('Failed to load user assignments')
   } finally {
     loading.value = false
   }
@@ -186,10 +186,10 @@ async function assignAgent(agent) {
     loading.value = true
     await userAgentApi.assignUserToAgent(selectedUser.value, agent.id)
     await loadUserAssignments()
-    toast.success('Agent assigned successfully', toastOptions)
+    toast.success('Agent assigned successfully')
   } catch (error) {
     console.error('Error assigning agent:', error)
-    toast.error('Failed to assign agent', toastOptions)
+    toast.error('Failed to assign agent')
   } finally {
     loading.value = false
   }
@@ -202,10 +202,10 @@ async function unassignAgent(agentId) {
     loading.value = true
     await userAgentApi.removeUserFromAgent(selectedUser.value, agentId)
     await loadUserAssignments()
-    toast.success('Agent unassigned successfully', toastOptions)
+    toast.success('Agent unassigned successfully')
   } catch (error) {
     console.error('Error unassigning agent:', error)
-    toast.error('Failed to unassign agent', toastOptions)
+    toast.error('Failed to unassign agent')
   } finally {
     loading.value = false
   }
