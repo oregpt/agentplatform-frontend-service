@@ -701,11 +701,6 @@ async function createUser() {
         throw error
       }
       
-      // If all retries failed, throw the last error
-      if (!success) {
-        throw lastError;
-      }
-      
       // Success notification
       notify({
         type: 'success',
