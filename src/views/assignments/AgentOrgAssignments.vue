@@ -4,88 +4,152 @@
       <router-link to="/assign" class="back-button">
         <i class="mdi mdi-arrow-left"></i> Back to Assignments
       </router-link>
-      <h1>Assign Agents to Organizations</h1>
+      <h1>Agent Organization Assignments</h1>
     </div>
-
+    
     <div class="content">
-      <div class="agent-selection">
+      <!-- Top buttons removed, keeping only the lower set -->
+      
+      <div class="organization-selection">
         <div class="form-group">
-          <label for="agent-select">Select Agent:</label>
-          <v-select
-            v-model="selectedAgent"
-            :options="agents"
-            label="name"
-            :reduce="agent => agent.id"
-            placeholder="Search agents..."
-            @option:selected="loadAgentOrganization"
+          <label for="org-select">Select Organization:</label>
+          <select 
+            id="org-select" 
+            v-model="selectedOrgId" 
+            class="form-control"
+            @change="onOrgChange"
           >
-            <template #option="{ name, organization_name }">
-              <div class="agent-option">
-                <div class="agent-name">{{ name }}</div>
-                <div v-if="organization_name" class="agent-org">
-                  Current: {{ organization_name }}
-                </div>
-              </div>
-            </template>
-          </v-select>
+            <option value="" disabled>Select an organization</option>
+            <option 
+              v-for="org in organizations" 
+              :key="org.id" 
+              :value="org.id"
+            >
+              {{ org.name || org.id }}
+            </option>
+          </select>
         </div>
       </div>
-
-      <div v-if="selectedAgent" class="assignment-container">
-        <div class="panel">
-          <h3>Select Organization</h3>
-          <div class="search-box">
-            <input
-              v-model="orgSearch"
-              type="text"
-              placeholder="Search organizations..."
-              class="search-input"
-            />
-          </div>
-          <div class="list-container">
-            <div
-              v-for="org in filteredOrganizations"
-              :key="org.id"
-              class="list-item"
-              :class="{ 'is-selected': selectedOrgId === org.id }"
-              @click="selectOrganization(org.id)"
-            >
-              <div class="org-name">{{ org.name }}</div>
-              <div class="org-id">ID: {{ org.id }}</div>
-            </div>
-            <div v-if="filteredOrganizations.length === 0" class="empty-state">
-              No organizations found
-            </div>
-          </div>
-        </div>
-
-        <div class="assignment-actions">
+      
+      <div v-if="error" class="error-message">
+        {{ error }}
+      </div>
+      
+      <div v-if="!selectedOrgId" class="empty-state">
+        <p>Please select an organization to view and manage agent assignments.</p>
+      </div>
+      
+      <div v-else>
+        <!-- Action buttons at the top right -->
+        <div v-if="selectedOrgId" class="form-actions top-actions">
           <button 
-            @click="updateAgentOrganization" 
-            :disabled="!selectedOrgId || loading"
-            class="assign-button"
+            @click="saveAssignments" 
+            :disabled="!changesMade || loading"
+            class="btn btn-primary"
           >
-            <span v-if="loading">
-              <i class="mdi mdi-loading mdi-spin"></i> Updating...
-            </span>
-            <span v-else>Update Organization</span>
+            <i class="mdi mdi-content-save"></i> Save Changes
           </button>
-          
           <button 
-            v-if="currentOrgId"
-            @click="clearOrganization" 
+            @click="resetSelections" 
+            class="btn btn-secondary"
+            :disabled="!changesMade || loading"
+          >
+            <i class="mdi mdi-refresh"></i> Reset
+          </button>
+          <button 
+            @click="clearAllAgents" 
+            class="btn btn-danger clear-button"
             :disabled="loading"
-            class="clear-button"
+            title="Remove all agents from this organization"
           >
-            Remove from Organization
+            <i class="mdi mdi-delete-sweep"></i> Clear All
           </button>
         </div>
-
-        <div v-if="currentOrgId" class="current-org">
-          <h3>Current Organization</h3>
-          <div class="current-org-details">
-            <div class="org-name">{{ currentOrg?.name || 'Loading...' }}</div>
-            <div class="org-id">ID: {{ currentOrgId }}</div>
+        
+        <div v-if="loading" class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading...</p>
+        </div>
+        
+        <div v-else class="assignment-container">
+          <div class="panel available-agents-panel">
+            <h3 class="panel-header">Available Agents</h3>
+            <div class="help-text">Agents that can be assigned to this organization</div>
+            
+            <div class="search-box">
+              <input
+                type="text"
+                v-model="agentSearch"
+                placeholder="Search available agents..."
+                class="search-input"
+              />
+            </div>
+            
+            <div class="list-container">
+              <div 
+                v-for="agent in filteredAvailableAgents" 
+                :key="agent.id"
+                class="list-item"
+                :class="{ 'selected': selectedOrg && selectedOrg.id === agent.id }"
+                @click="selectOrg(agent)"
+              >
+                <div>{{ agent.name || agent.id }}</div>
+              </div>
+            </div>
+              
+            <div v-if="filteredAvailableAgents.length === 0" class="empty-state">
+              No available agents found
+            </div>
+          </div>
+          
+          <div class="panel-actions">
+            <button 
+              class="action-button" 
+              @click="assignSelected" 
+              :disabled="!selectedOrg || loading"
+              title="Assign selected agent"
+            >
+              <i class="mdi mdi-arrow-right"></i>
+            </button>
+            
+            <button 
+              class="action-button" 
+              @click="unassignSelected" 
+              :disabled="!selectedAssignedOrg || loading"
+              title="Unassign selected agent"
+            >
+              <i class="mdi mdi-arrow-left"></i>
+            </button>
+          </div>
+          
+          <div class="panel assigned-agents-panel">
+            <h3 class="panel-header">Assigned Agents</h3>
+            <div class="help-text">Agents currently assigned to this organization</div>
+            
+            <div class="search-box">
+              <input
+                type="text"
+                v-model="assignedAgentSearch"
+                placeholder="Search assigned agents..."
+                class="search-input"
+              />
+            </div>
+            
+            <div class="list-container">
+              <div 
+                v-for="agent in filteredAssignedAgents" 
+                :key="agent.id"
+                class="list-item"
+                :class="{ 'selected': selectedAssignedOrg && selectedAssignedOrg.id === agent.id }"
+                @click="selectAssignedOrg(agent)"
+              >
+                <div>{{ agent.name || agent.id }}</div>
+              </div>
+            </div>
+              
+            <div v-if="filteredAssignedAgents.length === 0" class="empty-state">
+              No agents assigned to this organization
+            </div>
           </div>
         </div>
       </div>
@@ -95,8 +159,6 @@
 
 <script setup>
 import { ref, computed, onMounted, getCurrentInstance } from 'vue'
-import vSelect from 'vue-select'
-import 'vue-select/dist/vue-select.css'
 import { agentsApi, organizationsApi } from '@/services/api'
 
 // Get the global toast instance
@@ -106,30 +168,49 @@ const toast = proxy.$toast
 // State
 const agents = ref([])
 const organizations = ref([])
-const selectedAgent = ref(null)
-const selectedOrgId = ref(null)
-const currentOrgId = ref(null)
-const currentOrg = ref(null)
-const orgSearch = ref('')
+const selectedOrgId = ref('')
+const availableAgents = ref([])  // Agents not assigned to organization
+const assignedAgents = ref([])   // Agents assigned to the organization
+const agentSearch = ref('')
+const assignedAgentSearch = ref('')
+const selectedOrg = ref(null)
+const selectedAssignedOrg = ref(null)
 const loading = ref(false)
+const error = ref('')
+const changesMade = ref(false)
 
 // Computed
-const filteredOrganizations = computed(() => {
-  const search = orgSearch.value.toLowerCase()
-  return organizations.value.filter(org => 
-    org.name.toLowerCase().includes(search) ||
-    org.id.toLowerCase().includes(search)
+const filteredAvailableAgents = computed(() => {
+  const search = agentSearch.value.toLowerCase()
+  return availableAgents.value.filter(agent => 
+    agent.name && agent.name.toLowerCase().includes(search)
   )
 })
+
+const filteredAssignedAgents = computed(() => {
+  const search = assignedAgentSearch.value.toLowerCase()
+  return assignedAgents.value.filter(agent => 
+    agent.name && agent.name.toLowerCase().includes(search)
+  )
+})
+
+const showOrgLists = computed(() => selectedOrgId.value && !loading.value)
 
 // Methods
 async function loadAgents() {
   try {
     loading.value = true
+    error.value = ''
     const response = await agentsApi.getAll()
-    agents.value = response.data || []
+    if (response && response.data) {
+      agents.value = Array.isArray(response.data) ? response.data : 
+                   (Array.isArray(response.data?.agents) ? response.data.agents : [])
+    } else {
+      agents.value = []
+    }
   } catch (error) {
     console.error('Error loading agents:', error)
+    error.value = 'Failed to load agents'
     toast.error('Failed to load agents')
   } finally {
     loading.value = false
@@ -139,131 +220,252 @@ async function loadAgents() {
 async function loadOrganizations() {
   try {
     loading.value = true
+    error.value = ''
     const response = await organizationsApi.getAll()
-    // Ensure we have an array and properly format it for v-select
-    const orgsData = response.data?.organizations || response.data || []
-    organizations.value = Array.isArray(orgsData) 
-      ? orgsData.map(org => ({
-          ...org,
-          // Ensure required properties exist for v-select
-          name: org.name || `Organization ${org.id}`,
-          label: org.name || `Organization ${org.id}`,
-          value: org.id
-        }))
-      : []
+    if (response.data && Array.isArray(response.data.organizations)) {
+      organizations.value = response.data.organizations
+    } else if (Array.isArray(response.data)) {
+      organizations.value = response.data
+    } else {
+      organizations.value = []
+    }
   } catch (error) {
     console.error('Error loading organizations:', error)
+    error.value = 'Failed to load organizations'
     toast.error('Failed to load organizations')
-    organizations.value = [] // Ensure it's always an array
   } finally {
     loading.value = false
   }
 }
 
-async function loadAgentOrganization() {
-  if (!selectedAgent.value) {
-    currentOrgId.value = null
-    currentOrg.value = null
-    selectedOrgId.value = null
+async function loadAssignedAgents() {
+  if (!selectedOrgId.value) {
+    assignedAgents.value = []
     return
   }
   
   try {
     loading.value = true
-    const agent = agents.value.find(a => a.id === selectedAgent.value)
-    if (agent && agent.organization_id) {
-      currentOrgId.value = agent.organization_id
-      selectedOrgId.value = agent.organization_id
-      // Load full org details
-      const org = organizations.value.find(o => o.id === agent.organization_id)
-      if (org) {
-        currentOrg.value = org
-      } else {
-        // If org not in the list, fetch it
-        const response = await organizationsApi.getById(agent.organization_id)
-        currentOrg.value = response.data
+    const response = await agentsApi.getAll(selectedOrgId.value)
+    assignedAgents.value = Array.isArray(response.data) ? response.data : 
+                         (Array.isArray(response.data?.agents) ? response.data.agents : [])
+  } catch (error) {
+    console.error('Error loading assigned agents:', error)
+    error.value = 'Failed to load assigned agents'
+    toast.error('Failed to load assigned agents')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadAvailableAgents() {
+  try {
+    loading.value = true
+    error.value = ''
+    
+    // Get all agents the current user has access to
+    const response = await agentsApi.getAll()
+    const allAgents = Array.isArray(response.data) ? response.data : 
+                    (Array.isArray(response.data?.agents) ? response.data.agents : [])
+    
+    // Get the list of agents already assigned to the organization
+    const assignedAgentIds = new Set(assignedAgents.value.map(a => a.id))
+    
+    // Filter out agents that are already assigned to the organization
+    availableAgents.value = allAgents.filter(agent => !assignedAgentIds.has(agent.id))
+    
+  } catch (error) {
+    console.error('Error loading available agents:', error)
+    error.value = 'Failed to load available agents'
+    toast.error('Failed to load available agents')
+  } finally {
+    loading.value = false
+  }
+}
+
+function selectOrg(agent) {
+  selectedOrg.value = agent
+  selectedAssignedOrg.value = null
+}
+
+function selectAssignedOrg(agent) {
+  selectedAssignedOrg.value = agent
+  selectedOrg.value = null
+}
+
+function assignSelected() {
+  if (!selectedOrg.value) return
+  
+  // Add the selected agent to the assigned list
+  assignedAgents.value.push(selectedOrg.value)
+  
+  // Remove it from the available list
+  availableAgents.value = availableAgents.value.filter(a => a.id !== selectedOrg.value.id)
+  
+  // Reset selection
+  selectedOrg.value = null
+  
+  // Mark that changes have been made
+  changesMade.value = true
+}
+
+function unassignSelected() {
+  if (!selectedAssignedOrg.value) return
+  
+  // Add the selected agent back to the available list
+  availableAgents.value.push(selectedAssignedOrg.value)
+  
+  // Remove it from the assigned list
+  assignedAgents.value = assignedAgents.value.filter(a => a.id !== selectedAssignedOrg.value.id)
+  
+  // Reset selection
+  selectedAssignedOrg.value = null
+  
+  // Mark that changes have been made
+  changesMade.value = true
+}
+
+async function clearAllAgents() {
+  if (!selectedOrgId.value) return
+  
+  try {
+    loading.value = true
+    error.value = ''
+    
+    // Get all agents assigned to this organization
+    const agentsToUpdate = agents.value.filter(agent => agent.organization_id === selectedOrgId.value)
+    
+    // Update each agent to remove the organization assignment
+    const updatePromises = agentsToUpdate.map(agent => 
+      agentsApi.update(agent.id, {
+        organization_id: null
+      }).then(() => {
+        // Update local state
+        const agentIndex = agents.value.findIndex(a => a.id === agent.id)
+        if (agentIndex !== -1) {
+          agents.value[agentIndex].organization_id = null
+        }
+      })
+    )
+    
+    await Promise.all(updatePromises)
+    
+    // Refresh the lists
+    await Promise.all([loadAssignedAgents(), loadAvailableAgents()])
+    
+    toast.success('All agents removed from organization')
+  } catch (error) {
+    console.error('Error removing agents from organization:', error)
+    toast.error('Failed to remove agents from organization')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function saveAssignments() {
+  if (!selectedOrgId.value) return
+  
+  try {
+    loading.value = true
+    error.value = ''
+    
+    const orgId = selectedOrgId.value
+    
+    // Get the current assignments to determine what changed
+    const currentAssignments = new Set(assignedAgents.value.map(agent => agent.id))
+    
+    // Get all agents that should be assigned to this organization
+    const agentsToUpdate = [...agents.value]
+    
+    // Update each agent's organization_id based on whether they're in the assigned list
+    const updatePromises = agentsToUpdate.map(agent => {
+      const shouldBeAssigned = currentAssignments.has(agent.id)
+      const isCurrentlyAssigned = agent.organization_id === orgId
+      
+      // Only update if the assignment state has changed
+      if (shouldBeAssigned !== isCurrentlyAssigned) {
+        return agentsApi.update(agent.id, {
+          organization_id: shouldBeAssigned ? orgId : null
+        }).then(() => {
+          // Update local state
+          const agentIndex = agents.value.findIndex(a => a.id === agent.id)
+          if (agentIndex !== -1) {
+            agents.value[agentIndex].organization_id = shouldBeAssigned ? orgId : null
+          }
+        })
       }
-    } else {
-      currentOrgId.value = null
-      currentOrg.value = null
-      selectedOrgId.value = null
-    }
+      return Promise.resolve() // No change needed
+    })
+    
+    await Promise.all(updatePromises)
+    
+    // Refresh the lists
+    await Promise.all([loadAssignedAgents(), loadAvailableAgents()])
+    
+    changesMade.value = false
+    toast.success('Agent assignments updated successfully')
   } catch (error) {
-    console.error('Error loading agent organization:', error)
-    toast.error('Failed to load agent organization')
+    console.error('Error saving assignments:', error)
+    error.value = 'Failed to save agent assignments'
+    toast.error('Failed to save changes')
   } finally {
     loading.value = false
   }
 }
 
-function selectOrganization(orgId) {
-  selectedOrgId.value = orgId
-}
-
-async function updateAgentOrganization() {
-  if (!selectedAgent.value || !selectedOrgId.value) return
+async function resetSelections() {
+  if (!selectedOrgId.value) return
   
+  // Reset to initial state by reloading data
   try {
     loading.value = true
-    await agentsApi.update(selectedAgent.value, {
-      organization_id: selectedOrgId.value
-    })
-    
-    // Update local state
-    const agentIndex = agents.value.findIndex(a => a.id === selectedAgent.value)
-    if (agentIndex !== -1) {
-      agents.value[agentIndex].organization_id = selectedOrgId.value
-    }
-    
-    currentOrgId.value = selectedOrgId.value
-    currentOrg.value = organizations.value.find(o => o.id === selectedOrgId.value)
-    
-    toast.success('Agent organization updated successfully')
+    await Promise.all([loadAssignedAgents(), loadAvailableAgents()])
+    selectedOrg.value = null
+    selectedAssignedOrg.value = null
+    changesMade.value = false
   } catch (error) {
-    console.error('Error updating agent organization:', error)
-    toast.error('Failed to update agent organization')
+    console.error('Error resetting assignments:', error)
+    error.value = 'Failed to reset assignments'
+    toast.error('Failed to reset changes')
   } finally {
     loading.value = false
   }
 }
 
-async function clearOrganization() {
-  if (!selectedAgent.value) return
-  
-  try {
+// These functions were duplicated and have been removed
+
+function onOrgChange() {
+  if (selectedOrgId.value) {
+    changesMade.value = false
+    error.value = ''
     loading.value = true
-    await agentsApi.update(selectedAgent.value, {
-      organization_id: null
-    })
-    
-    // Update local state
-    const agentIndex = agents.value.findIndex(a => a.id === selectedAgent.value)
-    if (agentIndex !== -1) {
-      agents.value[agentIndex].organization_id = null
-    }
-    
-    currentOrgId.value = null
-    currentOrg.value = null
-    selectedOrgId.value = null
-    
-    toast.success('Agent removed from organization')
-  } catch (error) {
-    console.error('Error removing agent from organization:', error)
-    toast.error('Failed to remove agent from organization')
-  } finally {
-    loading.value = false
+    Promise.all([loadAssignedAgents(), loadAvailableAgents()])
+      .finally(() => {
+        loading.value = false
+      })
+  } else {
+    assignedAgents.value = []
+    availableAgents.value = []
   }
 }
 
 // Lifecycle hooks
 onMounted(async () => {
-  await Promise.all([loadAgents(), loadOrganizations()])
+  try {
+    loading.value = true
+    await Promise.all([loadAgents(), loadOrganizations()])
+  } catch (error) {
+    console.error('Error initializing component:', error)
+    toast.error('Failed to load data')
+  } finally {
+    loading.value = false
+  }
 })
 </script>
 
 <style scoped>
 .agent-org-assignments {
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
 }
@@ -314,19 +516,18 @@ label {
 }
 
 .assignment-container {
-  display: grid;
-  grid-template-columns: 1fr 200px;
+  display: flex;
   gap: 2rem;
   margin-top: 1.5rem;
 }
 
 .panel {
+  flex: 1;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  grid-row: span 2;
 }
 
 .panel h3 {
@@ -336,6 +537,17 @@ label {
   border-bottom: 1px solid #e0e0e0;
   font-size: 1rem;
   color: #2c3e50;
+}
+
+.panel-content {
+  padding: 0.5rem 0;
+}
+
+.help-text {
+  font-size: 0.85rem;
+  color: #7f8c8d;
+  margin: 0.5rem 0;
+  padding: 0 1rem;
 }
 
 .search-box {
@@ -358,30 +570,60 @@ label {
 }
 
 .list-item {
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid #f0f0f0;
   cursor: pointer;
-  transition: background-color 0.2s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .list-item:hover {
   background-color: #f8f9fa;
 }
 
-.list-item.is-selected {
+.list-item.selected {
   background-color: #e3f2fd;
-  border-left: 3px solid #1976d2;
 }
 
-.org-name {
+.badge {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
-  margin-bottom: 0.25rem;
 }
 
-.org-id {
-  font-size: 0.8rem;
-  color: #7f8c8d;
-  font-family: monospace;
+.panel-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.action-button {
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.action-button:hover:not(:disabled) {
+  background: #2980b9;
+}
+
+.action-button:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
 }
 
 .assignment-actions {
@@ -473,15 +715,60 @@ label {
   margin-top: 0.25rem;
 }
 
+.form-actions {
+  margin: 1rem 0;
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.top-actions {
+  margin-bottom: 1rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-primary {
+  background-color: #3498db;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+
+.btn-secondary {
+  background-color: #f8f9fa;
+  border: 1px solid #ddd;
+  color: #555;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #e9ecef;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .assignment-container {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
   
-  .assignment-actions {
+  .panel-actions {
     flex-direction: row;
-    justify-content: flex-start;
-    flex-wrap: wrap;
+    justify-content: center;
   }
   
   .assign-button,
